@@ -483,14 +483,14 @@ describe('Name Wrapper', () => {
 
     it('Does not allow wrapping a subdomain if the parent domain has not been wrapped yet', async () => {
 
-      // register sub.xyz before we wrap xyz
+      // register name.xyz before we wrap xyz
       await EnsRegistry.setSubnodeOwner(
         namehash('xyz'),
         labelhash('name'),
         account
       )
 
-      // register sub.xyz before we wrap xyz
+      // register sub.name.xyz before we wrap xyz
       await EnsRegistry.setSubnodeOwner(
         namehash('name.xyz'),
         labelhash('sub'),
@@ -499,6 +499,7 @@ describe('Name Wrapper', () => {
 
       // Register the name to account1
       await EnsRegistry.setApprovalForAll(NameWrapper.address, true)
+
       await NameWrapper.wrap(
         encodeName('xyz'),
         account,
@@ -509,6 +510,31 @@ describe('Name Wrapper', () => {
       await expect(
       await NameWrapper.wrap(
         encodeName('sub.name.xyz'),
+        account,
+        MINIMUM_PARENT_FUSES,
+        EMPTY_ADDRESS
+      )
+      ).to.be.reverted
+
+    })
+
+    it('Does not allow wrapping a subdomain of .eth if the parent domain has not been wrapped yet', async () => {
+
+      await BaseRegistrar.register(labelhash('name'), account, 84600)
+
+      // register sub.name.eth before we wrap xyz
+      await EnsRegistry.setSubnodeOwner(
+        namehash('name.eth'),
+        labelhash('sub'),
+        account
+      )
+
+      // Register the name to account1
+      await EnsRegistry.setApprovalForAll(NameWrapper.address, true)
+
+      await expect(
+      await NameWrapper.wrap(
+        encodeName('sub.name.eth'),
         account,
         MINIMUM_PARENT_FUSES,
         EMPTY_ADDRESS
