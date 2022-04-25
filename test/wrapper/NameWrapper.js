@@ -489,6 +489,41 @@ describe('Name Wrapper', () => {
       // Make sure it didn't succeed
       expect(await NameWrapper.ownerOf(namehash('xyz'))).to.equal(account)
     })
+    it('Does not allow wrapping a subdomain if the parent domain has not been wrapped yet', async () => {
+
+      // register sub.xyz before we wrap xyz
+      await EnsRegistry.setSubnodeOwner(
+        namehash('xyz'),
+        labelhash('name'),
+        account
+      )
+
+      // register sub.xyz before we wrap xyz
+      await EnsRegistry.setSubnodeOwner(
+        namehash('name.xyz'),
+        labelhash('sub'),
+        account
+      )
+
+      // Register the name to account1
+      await EnsRegistry.setApprovalForAll(NameWrapper.address, true)
+      await NameWrapper.wrap(
+        encodeName('xyz'),
+        account,
+        CAN_DO_EVERYTHING,
+        EMPTY_ADDRESS
+      )
+
+      await expect(
+      await NameWrapper.wrap(
+        encodeName('sub.name.xyz'),
+        account,
+        MINIMUM_PARENT_FUSES,
+        EMPTY_ADDRESS
+      )
+      ).to.be.reverted
+
+    })
   })
 
   describe('unwrap()', () => {
