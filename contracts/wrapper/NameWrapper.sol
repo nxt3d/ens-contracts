@@ -4,7 +4,7 @@ pragma solidity ^0.8.4;
 import "./ERC1155Fuse.sol";
 import "./Controllable.sol";
 import "./INameWrapper.sol";
-import "./INameWrapperUpgrade.sol";
+import "./INameWrapperMigration.sol";
 import "./IMetadataService.sol";
 import "../registry/ENS.sol";
 import "../ethregistrar/IBaseRegistrar.sol";
@@ -41,8 +41,10 @@ contract NameWrapper is
     bytes32 private constant ROOT_NODE =
         0x0000000000000000000000000000000000000000000000000000000000000000;
 
-    //A contract address to a new upgraded contract if any
-    INameWrapperUpgrade public upgradeContract;
+    //A mapping of nodes to migration contract addresses
+    //Set the INameWrapperMigation contract address for the ROOT_NODE to 
+    //allow all names to migrate.
+    mapping(bytes32 => INameWrapperMigration) public migrations;
 
     constructor(
         ENS _ens,
@@ -104,26 +106,26 @@ contract NameWrapper is
     }
 
     /**
-     * @notice Set the address of the upgradeContract of the contract. only admin can do this
-     * @dev The default value of upgradeContract is the 0 address. Use the 0 address at any time 
-     * to make the contract not upgradable. 
-     * @param _upgradeAddress address of an upgraded contract
+     * @notice Set the address of the migration contract. only admin can do this
+     * @dev Set the INameWrapperMigation contract address for the ROOT_NODE to 
+     * allow all names to migrate. Set the migration contract of any node to  
+     * the 0 address to prevent any name from being migrated.  
+     * @param _migrationAddress address of an upgraded contract
      */
 
-    function setUpgradeContract(address _upgradeAddress)
+    function setMigrationContract(bytes32 node, address _migrationAddress)
         public
         onlyOwner
     {
-            if (address(upgradeContract) != address(0)){
-                registrar.setApprovalForAll(address(upgradeContract), false);
-                ens.setApprovalForAll(address(upgradeContract), false);
+            if (address(migrations[node]) != address(0)){
+                registrar.setApprovalForAll(address(migrations[node]), false);
+                ens.setApprovalForAll(address(migrations[node]), false);
             }
+            migrations[node] = INameWrapperMigration(_migrationAddress);
 
-            upgradeContract = INameWrapperUpgrade(_upgradeAddress);
-
-            if (address(upgradeContract) != address(0)){
-                registrar.setApprovalForAll(address(upgradeContract), true);
-                ens.setApprovalForAll(address(upgradeContract), true);
+            if (address(migrations[node]) != address(0)){
+                registrar.setApprovalForAll(address(migrations[node]), true);
+                ens.setApprovalForAll(address(migrations[node]), true);
             }
     }
 
@@ -363,23 +365,19 @@ contract NameWrapper is
     }
 
     /**
-     * @notice Upgrades a .eth wrapped domain by calling the wrapETH2LD function of the upgradeAddress
-     *  contract and burning the token of this contract.  
-     * @dev Can be called by the owner of the name (ERC721 token) in the registrar contract  
+     * @notice Migrates a .eth wrapped domain by calling the wrapETH2LD function of the migration 
+     *  contract for that node or the ROOT_NODE and burning the token of this contract.  
+     * @dev Can be called by the owner of the label in this contract 
      * @param label label as a string of the .eth domain to wrap
      * @param wrappedOwner The owner of the wrapped name.
      */
 
-    function upgradeETH2LD(
+    function migrateETH2LD(
         string calldata label,
         address wrappedOwner
     ) 
         public 
     {
-
-        if (address(upgradeContract) == address(0)){
-            revert ZeroAddress();
-        }
 
         bytes32 labelhash = keccak256(bytes(label));
         bytes32 node = _makeNode(ETH_NODE, labelhash);       
@@ -388,32 +386,34 @@ contract NameWrapper is
             revert Unauthorised(node, msg.sender);
         }
 
-        (uint96 fuses,,) = getFuses(node);
 
-        address resolver = ens.resolver(node);
+        if (address(migrations[node]) != address(0)){
+            
+            _migrateETH2LD(node, label, wrappedOwner, migrations[node]); 
 
-        upgradeContract.wrapETH2LD(label, wrappedOwner, fuses, resolver);
+        } else if (address(migrations[ROOT_NODE]) != address(0)){
 
-        // burn token and fuse data
-        _burn(uint256(node));
+            _migrateETH2LD(node, label, wrappedOwner, migrations[ROOT_NODE]); 
 
+        } else {
+
+        revert ZeroAddress();
+
+        }
     }
 
     /**
-     * @notice Wraps a non .eth domain, of any kind. Could be a DNSSEC name vitalik.xyz or a subdomain
-     * @dev Can be called by the owner in the registry or an authorised caller in the registry
+     * @notice Migrates a non .eth domain, of any kind, to a migration contract. Could be a 
+     * DNSSEC name, vitalik.xyz, or a subdomain, safe.vitalik.eth.
+     * @dev Can be called by the owner of the name in this contract 
      * @param name The name to wrap, in DNS format
-     * @param wrappedOwner Owner of the name in this contract
+     * @param wrappedOwner The owner of the wrapped name.
      */
 
-    function upgrade(
+    function migrate(
         bytes calldata name,
         address wrappedOwner
     ) public {
-
-        if (address(upgradeContract) == address(0)){
-            revert ZeroAddress();
-        }
 
         (bytes32 labelhash, uint offset) = name.readLabel(0);
         bytes32 parentNode = name.namehash(offset);
@@ -423,14 +423,20 @@ contract NameWrapper is
             revert Unauthorised(node, msg.sender);
         }
 
-        address resolver = ens.resolver(node);
+        if (address(migrations[node]) != address(0)){
+            
+            _migrate(node, name, wrappedOwner, migrations[node]); 
 
-        (uint96 fuses,,) = getFuses(node);
+        } else if (address(migrations[ROOT_NODE]) != address(0)){
 
-        upgradeContract.wrap(name, wrappedOwner, fuses, resolver);
+            _migrate(node, name, wrappedOwner, migrations[ROOT_NODE]); 
 
-        // burn token and fuse data
-        _burn(uint256(node));
+        } else {
+
+        revert ZeroAddress();
+
+        }
+
     }
 
     /**
@@ -758,6 +764,30 @@ contract NameWrapper is
         ens.setOwner(node, newOwner);
 
         emit NameUnwrapped(node, newOwner);
+    }
+
+    function _migrateETH2LD(bytes32 node, string memory label, address wrappedOwner, INameWrapperMigration migrationContract) private {
+
+        (uint96 fuses,,) = getFuses(node);
+
+        address resolver = ens.resolver(node);
+
+        migrationContract.wrapETH2LD(label, wrappedOwner, fuses, resolver);
+
+        // burn token and fuse data
+        _burn(uint256(node));
+    }
+
+    function _migrate(bytes32 node, bytes memory name, address wrappedOwner, INameWrapperMigration migrationContract) private {
+
+        address resolver = ens.resolver(node);
+
+        (uint96 fuses,,) = getFuses(node);
+
+        migrationContract.wrap(name, wrappedOwner, fuses, resolver);
+
+        // burn token and fuse data
+        _burn(uint256(node));
     }
 
     function _setData(

@@ -1,6 +1,6 @@
 pragma solidity ^0.8.4;
 
-interface INameWrapperUpgrade {
+interface INameWrapperMigration {
 
     function wrap(
         bytes calldata name,
