@@ -489,41 +489,6 @@ describe('Name Wrapper', () => {
       // Make sure it didn't succeed
       expect(await NameWrapper.ownerOf(namehash('xyz'))).to.equal(account)
     })
-    it('Does not allow wrapping a subdomain if the parent domain has not been wrapped yet', async () => {
-
-      // register sub.xyz before we wrap xyz
-      await EnsRegistry.setSubnodeOwner(
-        namehash('xyz'),
-        labelhash('name'),
-        account
-      )
-
-      // register sub.xyz before we wrap xyz
-      await EnsRegistry.setSubnodeOwner(
-        namehash('name.xyz'),
-        labelhash('sub'),
-        account
-      )
-
-      // Register the name to account1
-      await EnsRegistry.setApprovalForAll(NameWrapper.address, true)
-      await NameWrapper.wrap(
-        encodeName('xyz'),
-        account,
-        CAN_DO_EVERYTHING,
-        EMPTY_ADDRESS
-      )
-
-      await expect(
-      await NameWrapper.wrap(
-        encodeName('sub.name.xyz'),
-        account,
-        MINIMUM_PARENT_FUSES,
-        EMPTY_ADDRESS
-      )
-      ).to.be.reverted
-
-    })
   })
 
   describe('unwrap()', () => {
@@ -1224,6 +1189,10 @@ describe('Name Wrapper', () => {
     const label = 'wrapped2'
     const labelHash = labelhash(label)
     const nameHash = namehash(label + '.eth')
+    
+    const ethLabel = 'eth'
+    const ethHash = labelhash(ethLabel)
+    const ethNameHash = namehash(ethLabel)
 
     it('migrates a .eth name if sender is owner', async () => {
       await BaseRegistrar.register(labelHash, account, 84600)
@@ -1255,7 +1224,61 @@ describe('Name Wrapper', () => {
       )
 
       //set the upgradeContract of the NameWrapper contract
-      await NameWrapper.setMigrationContract(EMPTY_BYTES32, NameWrapperMigration.address)
+      await NameWrapper.setMigrationContract(ROOT_NODE, DUMMY_ADDRESS)
+
+      //set the upgradeContract of the NameWrapper contract, overriding the previous one
+      await NameWrapper.setMigrationContract(nameHash, NameWrapperMigration.address)
+
+      await NameWrapper.migrateETH2LD(
+        label,
+        account
+      )
+
+      //make sure owner of the registry is updated to the new migration contract
+
+      expect(await EnsRegistry.owner(nameHash)).to.equal(NameWrapperMigration.address)
+
+      //make sure owner in the migration NameWrapper contract is the user
+
+      expect(await NameWrapperMigration.ownerOf(nameHash)).to.equal(account)
+
+      // make sure registrar ERC721 is owned by the migrated NameWrapper contract
+
+      expect(await BaseRegistrar.ownerOf(labelHash)).to.equal(
+        NameWrapperMigration.address
+      )
+    })
+    it('migrates a .eth name if sender is owner to a contract set on the ROOT_NODE', async () => {
+      await BaseRegistrar.register(labelHash, account, 84600)
+
+      //allow the restricted name wrappper to transfer the name to itself and reclaim it
+      await BaseRegistrar.setApprovalForAll(NameWrapper.address, true)
+
+      expect(await NameWrapper.ownerOf(nameHash)).to.equal(EMPTY_ADDRESS)
+
+      await NameWrapper.wrapETH2LD(
+        label,
+        account,
+        CAN_DO_EVERYTHING,
+        EMPTY_ADDRESS
+      )
+
+      //make sure reclaim claimed ownership for the wrapper in registry
+
+      expect(await EnsRegistry.owner(nameHash)).to.equal(NameWrapper.address)
+
+      //make sure owner in the wrapper is the user
+
+      expect(await NameWrapper.ownerOf(nameHash)).to.equal(account)
+
+      // make sure registrar ERC721 is owned by Wrapper
+
+      expect(await BaseRegistrar.ownerOf(labelHash)).to.equal(
+        NameWrapper.address
+      )
+
+      //set the upgradeContract of the NameWrapper contract, overriding the previous one
+      await NameWrapper.setMigrationContract(ROOT_NODE, NameWrapperMigration.address)
 
       await NameWrapper.migrateETH2LD(
         label,
@@ -1454,34 +1477,34 @@ describe('Name Wrapper', () => {
       )
       await NameWrapper.setSubnodeOwner(
         namehash('xyz'),
-        labelhash('to-upgrade'),
+        labelhash('to-migrate'),
         account
       )
       await NameWrapper.wrap(
-        encodeName('to-upgrade.xyz'),
+        encodeName('to-migrate.xyz'),
         account,
         0,
         EMPTY_ADDRESS
       )
       const ownerOfWrappedXYZ = await NameWrapper.ownerOf(
-        namehash('to-upgrade.xyz')
+        namehash('to-migrate.xyz')
       )
       expect(ownerOfWrappedXYZ).to.equal(account)
 
       //set the upgradeContract of the NameWrapper contract
-      await NameWrapper.setMigrationContract(EMPTY_BYTES32, NameWrapperMigration.address)
+      await NameWrapper.setMigrationContract(ROOT_NODE, NameWrapperMigration.address)
 
       expect(await EnsRegistry.isApprovedForAll(NameWrapper.address,NameWrapperMigration.address)).to.equal(true)
 
-      await NameWrapper.migrate(encodeName('to-upgrade.xyz'), account)
+      await NameWrapper.migrate(encodeName('to-migrate.xyz'), account)
 
       //make sure owner of the registry is updated to the new migration contract
 
-      expect(await EnsRegistry.owner(namehash('to-upgrade.xyz'))).to.equal(NameWrapperMigration.address)
+      expect(await EnsRegistry.owner(namehash('to-migrate.xyz'))).to.equal(NameWrapperMigration.address)
 
       //make sure owner in the migrated NameWrapper contract is the user
 
-      expect(await NameWrapperMigration.ownerOf(namehash('to-upgrade.xyz'))).to.equal(account)
+      expect(await NameWrapperMigration.ownerOf(namehash('to-migrate.xyz'))).to.equal(account)
     })
   })
   describe('burnFuses()', () => {
