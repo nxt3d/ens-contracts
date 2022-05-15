@@ -91,7 +91,7 @@ contract NameWrapper is
     /**
      * @notice Get the metadata uri
      * @param tokenId Id of the wrapped name
-     * @return String URI of the metadata service
+     * @return string URI of the metadata service
      */
 
     function uri(uint256 tokenId) public view override returns (string memory) {
@@ -115,7 +115,7 @@ contract NameWrapper is
      * @notice Checks if owner or approved by owner
      * @param node Namehash of the name to check
      * @param addr Address to check permissions for
-     * @return Boolean Whether or not is owner or approved
+     * @return bool Whether or not is owner or approved
      */
 
     function isTokenOwnerOrApproved(bytes32 node, address addr)
@@ -162,8 +162,9 @@ contract NameWrapper is
      * @dev Can be called by the owner of the name in the .eth registrar or an authorised 
      *     caller on the registrar 
      * @param label Label as a string of the .eth domain to wrap
-     * @param _fuses Initial fuses to set
      * @param wrappedOwner Owner of the name in this contract
+     * @param _fuses Initial fuses to set
+     * @param resolver The resolver address to set on the ENS registry 
      */
 
     function wrapETH2LD(
@@ -200,7 +201,7 @@ contract NameWrapper is
      * @param label The label to register (Eg, 'foo' for 'foo.eth')
      * @param wrappedOwner The owner of the wrapped name
      * @param duration The duration, in seconds, to register the name for
-     * @param resolver The resolver address to set on the ENS registry (optional)
+     * @param resolver The resolver address to set on the ENS registry 
      * @param _fuses Initial fuses to set
      * @return expires The expiry date of the new name, in seconds since the Unix epoch
      */
