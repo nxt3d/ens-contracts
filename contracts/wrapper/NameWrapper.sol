@@ -450,13 +450,49 @@ contract NameWrapper is
      * @param parentNode parent namehash of the name e.g. vitalik.xyz would be namehash('xyz')
      * @param labelhash labelhash of the name, e.g. vitalik.xyz would be keccak256('vitalik')
      * @param fuses fuses to burn
-     * @param expiry when the fuses will expire
      */
 
     function setChildFuses(
         bytes32 parentNode,
         bytes32 labelhash,
-        uint32 fuses,
+        uint32 fuses
+    ) public {
+        bytes32 node = _makeNode(parentNode, labelhash);
+        (address owner, uint32 oldFuses, uint64 expiry) = getData(
+            uint256(node)
+        );
+
+        // if PARENT_CANNOT_CONTROL has been burned 
+        if (
+            oldFuses & PARENT_CANNOT_CONTROL != 0
+        ) {
+            revert OperationProhibited(node);
+        }
+
+        uint64 maxExpiry;
+        if (parentNode == ETH_NODE) {
+            if (!isTokenOwnerOrApproved(node, msg.sender)) {
+                revert Unauthorised(node, msg.sender);
+            }
+        } else {
+            if (!isTokenOwnerOrApproved(parentNode, msg.sender)) {
+                revert Unauthorised(node, msg.sender);
+            }
+        }
+        
+        fuses |= oldFuses;
+        _setFuses(node, owner, fuses, expiry);
+    }
+
+    /* @notice Sets the expiry of the domain. Can also be called by the owner of a .eth name
+     * @param parentNode parent namehash of the name e.g. vitalik.xyz would be namehash('xyz')
+     * @param labelhash labelhash of the name, e.g. vitalik.xyz would be keccak256('vitalik')
+     * @param expiry when the fuses will expire
+     */
+
+    function renewSubdomain(
+        bytes32 parentNode,
+        bytes32 labelhash,
         uint64 expiry
     ) public {
         bytes32 node = _makeNode(parentNode, labelhash);
@@ -481,15 +517,7 @@ contract NameWrapper is
 
         expiry = _normaliseExpiry(expiry, oldExpiry, maxExpiry);
 
-        // if PARENT_CANNOT_CONTROL has been burned and fuses have changed
-        if (
-            oldFuses & PARENT_CANNOT_CONTROL != 0 &&
-            oldFuses | fuses != oldFuses
-        ) {
-            revert OperationProhibited(node);
-        }
-        fuses |= oldFuses;
-        _setFuses(node, owner, fuses, expiry);
+        _setFuses(node, owner, oldFuses, expiry);
     }
 
     /**
