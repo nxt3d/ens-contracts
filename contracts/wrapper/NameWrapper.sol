@@ -23,6 +23,7 @@ error LabelTooLong(string label);
 error IncorrectTargetOwner(address owner);
 error CannotUpgrade();
 error InvalidExpiry(bytes32 node, uint64 expiry);
+error SubcontrollerAlreadyBurnt(bytes32 node, address addr);
 
 contract NameWrapper is
     Ownable,
@@ -36,6 +37,9 @@ contract NameWrapper is
     IBaseRegistrar public immutable override registrar;
     IMetadataService public override metadataService;
     mapping(bytes32 => bytes) public override names;
+
+    //Mapping of nodes to addresses of subcontrollers 
+    mapping(bytes32 => address) public override subcontrollers;
 
     bytes32 private constant ETH_NODE =
         0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae;
@@ -170,6 +174,22 @@ contract NameWrapper is
     {
         address owner = ownerOf(uint256(node));
         return owner == addr || isApprovedForAll(owner, addr);
+    }
+
+   /**
+     * @notice Checks if address is the subcontroller of the node.
+     * @param node namehash of the name to check
+     * @param addr which address to check permissions for
+     * @return whether or not is set as the subcontroller
+     */
+
+    function isSubcontroller(bytes32 node, address addr)
+        public
+        view
+        override
+        returns (bool)
+    {
+        return subcontrollers[node] == addr;
     }
 
     /**
@@ -391,6 +411,31 @@ contract NameWrapper is
     }
 
     /**
+     * @notice Set the subcontroller of a subdomain. Only the owner of the parent name can do this.
+     *     This CANNOT be undone by the parent name owner unless the subdomain expires.
+     * @param parentNode Namehash of the parent name.
+     * @param label Label as a string, e.g., 'vitalik' for vitalik.eth.
+     * @param subcontroller An address to use as a subcontroller for the subdomain.
+     */
+
+    function burnSubcontroller(bytes32 parentNode, string calldata label, address subcontroller) 
+        public 
+        onlyTokenOwner(parentNode) 
+    {
+
+        bytes32 labelhash = keccak256(bytes(label));
+        bytes32 node = _makeNode(parentNode, labelhash);
+        (, , uint64 expiry) = getData(uint256(node));
+
+        if (subcontrollers[node] == address(0) || block.timestamp > expiry) {
+            subcontrollers[node] = subcontroller;
+            emit SubcontrollerChanged(node, subcontroller);
+        } else {
+            revert SubcontrollerAlreadyBurnt(node, subcontrollers[node]);
+        }
+    }
+
+    /**
      * @notice Upgrades a .eth wrapped domain by calling the wrapETH2LD function of the upgradeContract
      *     and burning the token of this contract
      * @dev Can be called by the owner of the name in this contract
@@ -469,7 +514,6 @@ contract NameWrapper is
             revert OperationProhibited(node);
         }
 
-        uint64 maxExpiry;
         if (parentNode == ETH_NODE) {
             if (!isTokenOwnerOrApproved(node, msg.sender)) {
                 revert Unauthorised(node, msg.sender);
@@ -501,18 +545,21 @@ contract NameWrapper is
         );
         uint64 maxExpiry;
         if (parentNode == ETH_NODE) {
-            if (!isTokenOwnerOrApproved(node, msg.sender)) {
-                revert Unauthorised(node, msg.sender);
-            }
-            // max expiry is set to the expiry on the registrar
-            maxExpiry = uint64(registrar.nameExpires(uint256(labelhash)));
-        } else {
-            if (!isTokenOwnerOrApproved(parentNode, msg.sender)) {
+
+            if (isTokenOwnerOrApproved(node, msg.sender) || isSubcontroller(node, msg.sender)) {
+                // max expiry is set to the expiry on the registrar
+                maxExpiry = uint64(registrar.nameExpires(uint256(labelhash)));
+            } else {
                 revert Unauthorised(node, msg.sender);
             }
 
-            // max expiry is set to the expiry of the parent
-            (, , maxExpiry) = getData(uint256(parentNode));
+        } else {
+            if (isTokenOwnerOrApproved(parentNode, msg.sender) || isSubcontroller(node, msg.sender)) {
+                // max expiry is set to the expiry of the parent
+                (, , maxExpiry) = getData(uint256(parentNode));
+            } else {
+                revert Unauthorised(node, msg.sender);
+            }
         }
 
         expiry = _normaliseExpiry(expiry, oldExpiry, maxExpiry);

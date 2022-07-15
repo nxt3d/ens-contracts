@@ -28,6 +28,8 @@ interface INameWrapper is IERC1155 {
 
     event FusesSet(bytes32 indexed node, uint32 fuses, uint64 expiry);
 
+    event SubcontrollerChanged(bytes32 node, address subcontroller );
+
     function ens() external view returns (ENS);
 
     function registrar() external view returns (IBaseRegistrar);
@@ -35,6 +37,8 @@ interface INameWrapper is IERC1155 {
     function metadataService() external view returns (IMetadataService);
 
     function names(bytes32) external view returns (bytes memory);
+
+    function subcontrollers(bytes32) external view returns (address addr);
 
     function wrap(
         bytes calldata name,
@@ -84,8 +88,7 @@ interface INameWrapper is IERC1155 {
     function setChildFuses(
         bytes32 parentNode,
         bytes32 labelhash,
-        uint32 fuses,
-        uint64 expiry
+        uint32 fuses
     ) external;
 
     function setSubnodeRecord(
@@ -114,6 +117,10 @@ interface INameWrapper is IERC1155 {
     ) external returns (bytes32);
 
     function isTokenOwnerOrApproved(bytes32 node, address addr)
+        external
+        returns (bool);
+
+    function isSubcontroller(bytes32 node, address addr)
         external
         returns (bool);
 
