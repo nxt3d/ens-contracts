@@ -28,7 +28,7 @@ interface INameWrapper is IERC1155 {
 
     event FusesSet(bytes32 indexed node, uint32 fuses, uint64 expiry);
 
-    event SubcontrollerChanged(bytes32 node, address subcontroller );
+    event SubcontrollerChanged(bytes32 node, address subcontroller);
 
     function ens() external view returns (ENS);
 
