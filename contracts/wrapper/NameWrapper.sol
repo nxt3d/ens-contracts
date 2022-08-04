@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import "./ERC1155Fuse.sol";
 import "./Controllable.sol";
+import "./Subcontrollers.sol";
 import "./INameWrapper.sol";
 import "./INameWrapperUpgrade.sol";
 import "./IMetadataService.sol";
@@ -29,6 +30,7 @@ contract NameWrapper is
     ERC1155Fuse,
     INameWrapper,
     Controllable,
+    Subcontrollers,
     IERC721Receiver
 {
     using BytesUtils for bytes;
@@ -367,6 +369,31 @@ contract NameWrapper is
     }
 
     /**
+     * @notice Set the subcontroller of a subdomain. Only the owner of the parent name can do this.
+     *     This CANNOT be undone by the parent name owner unless the subdomain expires.
+     * @param parentNode Namehash of the parent name.
+     * @param label Label as a string, e.g., 'vitalik' for vitalik.eth.
+     * @param subcontroller An address to use as a subcontroller for the subdomain.
+     */
+
+    function burnSubcontroller(bytes32 parentNode, string calldata label, address subcontroller) 
+        public 
+        onlyTokenOwner(parentNode) 
+    {
+
+        bytes32 labelhash = keccak256(bytes(label));
+        bytes32 node = _makeNode(parentNode, labelhash);
+        (, , uint64 expiry) = getData(uint256(node));
+
+        if (subcontrollers[node] == address(0) || block.timestamp > expiry) {
+            subcontrollers[node] = subcontroller;
+            emit SubcontrollerChanged(node, subcontroller);
+        } else {
+            revert SubcontrollerAlreadyBurnt(node, subcontrollers[node]);
+        }
+    }
+
+    /**
      * @notice Upgrades a .eth wrapped domain by calling the wrapETH2LD function of the upgradeContract
      *     and burning the token of this contract
      * @dev Can be called by the owner of the name in this contract
@@ -441,13 +468,20 @@ contract NameWrapper is
         );
         uint64 maxExpiry;
         if (parentNode == ETH_NODE) {
-            if (!isTokenOwnerOrApproved(node, msg.sender)) {
+            if (
+                !isTokenOwnerOrApproved(node, msg.sender) && 
+                !isSubcontroller(node, msg.sender)
+            ) {
+
                 revert Unauthorised(node, msg.sender);
             }
             // max expiry is set to the expiry on the registrar
             maxExpiry = uint64(registrar.nameExpires(uint256(labelhash)));
         } else {
-            if (!isTokenOwnerOrApproved(parentNode, msg.sender)) {
+            if (
+                !isTokenOwnerOrApproved(parentNode, msg.sender) && 
+                !isSubcontroller(node, msg.sender)
+            ) {
                 revert Unauthorised(node, msg.sender);
             }
 
