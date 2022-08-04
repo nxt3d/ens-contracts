@@ -86,6 +86,7 @@ contract NameWrapper is
     {
         return
             interfaceId == type(INameWrapper).interfaceId ||
+            interfaceId == type(IERC721Receiver).interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
@@ -190,31 +191,6 @@ contract NameWrapper is
         returns (bool)
     {
         return subcontrollers[node] == addr;
-    }
-
-    /**
-     * @notice Gets fuse permissions for a specific name
-     * @dev Fuses are represented by a uint32 where each permission is represented by 1 bit
-     *      The interface has predefined fuses for all registry permissions, but additional
-     *      fuses can be added for other use cases
-     *      Also returns expiry, which is when the fuses are set to expire.
-     * @param node namehash of the name to check
-     * @return fuses A number that represents the permissions a name has. Returns 0 when expiry < block.timestamp
-     * @return expiry Unix time of when the name expires and fuses are to expire
-     */
-    function getFuses(bytes32 node)
-        public
-        view
-        override
-        returns (uint32 fuses, uint64 expiry)
-    {
-        (, fuses, expiry) = getData(uint256(node));
-        if (fuses == 0 && expiry == 0) {
-            bytes memory name = names[node];
-            if (name.length == 0) {
-                revert NameNotFound();
-            }
-        }
     }
 
     /**
@@ -387,7 +363,7 @@ contract NameWrapper is
     /**
      * @notice Sets fuses of a name
      * @param node namehash of the name
-     * @param fuses fuses to burn (cannot burn PARENT_CANOT_CONTROL)
+     * @param fuses fuses to burn (cannot burn PARENT_CANNOT_CONTROL)
      */
 
     function setFuses(bytes32 node, uint32 fuses)
@@ -879,7 +855,7 @@ contract NameWrapper is
             revert Unauthorised(node, msg.sender);
         }
 
-        (fuses, expiry) = getFuses(node);
+        ( , fuses, expiry) = getData(uint256(node));
 
         // burn token and fuse data
         _burn(uint256(node));
