@@ -3,7 +3,8 @@ pragma solidity ~0.8.17;
 
 import {ERC1155Fuse, IERC165} from "./ERC1155Fuse.sol";
 import {Controllable} from "./Controllable.sol";
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, PARENT_CANNOT_CONTROL, CAN_DO_EVERYTHING, IS_DOT_ETH, PARENT_CONTROLLED_FUSES, USER_SETTABLE_FUSES} from "./INameWrapper.sol";
+import {AuxDataService} from "./AuxDataService.sol";
+import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, PARENT_CANNOT_CONTROL, CAN_DO_EVERYTHING, IS_DOT_ETH, PARENT_CONTROLLED_FUSES, USER_SETTABLE_FUSES, AUXDATA_LOCKED} from "./INameWrapper.sol";
 import {INameWrapperUpgrade} from "./INameWrapperUpgrade.sol";
 import {IMetadataService} from "./IMetadataService.sol";
 import {ENS} from "../registry/ENS.sol";
@@ -22,12 +23,14 @@ error LabelTooLong(string label);
 error IncorrectTargetOwner(address owner);
 error CannotUpgrade();
 error OperationProhibited(bytes32 node);
+error AuxDataLocked(bytes32 node, uint256 data);
 
 contract NameWrapper is
     Ownable,
     ERC1155Fuse,
     INameWrapper,
     Controllable,
+    AuxDataService,
     IERC721Receiver,
     ERC20Recoverable
 {
@@ -185,6 +188,32 @@ contract NameWrapper is
         if (address(upgradeContract) != address(0)) {
             registrar.setApprovalForAll(address(upgradeContract), true);
             ens.setApprovalForAll(address(upgradeContract), true);
+        }
+    }
+
+    /**
+     * @notice Set the auxiliary data of a subdomain. Only the owner of the parent name can do this.
+     * @param parentNode Namehash of the parent name.
+     * @param label Label as a string, e.g., 'vitalik' for vitalik.eth.
+     * @param data Data to use as auxdata for the subdomain.
+     */
+
+    function setAuxData(bytes32 parentNode, string calldata label, uint256 data) 
+        public 
+        override
+        onlyTokenOwner(parentNode) 
+    {
+
+        bytes32 labelhash = keccak256(bytes(label));
+        bytes32 node = _makeNode(parentNode, labelhash);
+        (, uint32 fuses, ) = getData(uint256(node));
+        
+       // If the AUXDATA_LOCKED fuse has not been bunt set the AuxData 
+        if (fuses & AUXDATA_LOCKED == 0 ) {
+            auxData[node] = data;
+            emit AuxDataChanged(node, data);
+        } else {
+            revert AuxDataLocked(node, auxData[node]);
         }
     }
 
