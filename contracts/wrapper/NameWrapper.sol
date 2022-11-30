@@ -3,7 +3,7 @@ pragma solidity ~0.8.17;
 
 import {ERC1155Fuse, IERC165} from "./ERC1155Fuse.sol";
 import {Controllable} from "./Controllable.sol";
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, PARENT_CANNOT_CONTROL, CAN_DO_EVERYTHING, IS_DOT_ETH, PARENT_CONTROLLED_FUSES, USER_SETTABLE_FUSES, AUXDATA_LOCKED} from "./INameWrapper.sol";
+import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, PARENT_CANNOT_CONTROL, CAN_DO_EVERYTHING, IS_DOT_ETH, PARENT_CONTROLLED_FUSES, USER_SETTABLE_FUSES} from "./INameWrapper.sol";
 import {INameWrapperUpgrade} from "./INameWrapperUpgrade.sol";
 import {IMetadataService} from "./IMetadataService.sol";
 import {ENS} from "../registry/ENS.sol";
@@ -12,6 +12,7 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {BytesUtils} from "./BytesUtils.sol";
 import {ERC20Recoverable} from "../utils/ERC20Recoverable.sol";
+import {ISubcontrollerService} from "./ISubcontrollerService.sol";
 
 error Unauthorised(bytes32 node, address addr);
 error IncompatibleParent();
@@ -22,7 +23,6 @@ error LabelTooLong(string label);
 error IncorrectTargetOwner(address owner);
 error CannotUpgrade();
 error OperationProhibited(bytes32 node);
-error AuxDataLocked(bytes32 node, uint256 data);
 
 contract NameWrapper is
     Ownable,
@@ -49,6 +49,7 @@ contract NameWrapper is
         0x0000000000000000000000000000000000000000000000000000000000000000;
 
     INameWrapperUpgrade public upgradeContract;
+    ISubcontrollerService public subcontrollerService;
     uint64 private constant MAX_EXPIRY = type(uint64).max;
 
     constructor(
@@ -188,6 +189,7 @@ contract NameWrapper is
             ens.setApprovalForAll(address(upgradeContract), true);
         }
     }
+
     /**
      * @notice Checks if msg.sender is the owner or approved by the owner of a name
      * @param node namehash of the name to check
@@ -497,6 +499,55 @@ contract NameWrapper is
         }
         fuses |= oldFuses;
         _setFuses(node, owner, fuses, expiry);
+    }
+
+    /** 
+    /* @notice Renews a subname – extening the epiry. Can only be called by the parent name owner
+            // or if the name has a subcontroller the sender can be the subcontroller address. 
+     * @param parentNode The parent namehash of the name e.g. vitalik.xyz would be namehash('xyz').
+     * @param labelhash The labelhash of the name, e.g. vitalik.xyz would be keccak256('vitalik').
+     * @param expiry The time when the name will expire in seconds since the Unix epoch. 
+     */
+
+    function renewSubname(
+        bytes32 parentNode,
+        bytes32 labelhash,
+        uint64 expiry
+    ) public {
+
+        bytes32 node = _makeNode(parentNode, labelhash);
+        (address owner, uint32 fuses, uint64 oldExpiry) = getData(uint256(node));
+
+        // max expiry is set to the expiry of the parent
+        (, , uint64 maxExpiry) = getData(
+            uint256(parentNode)
+        );
+        
+        // Revert if the sender is not the owner or approved by the owner or a subcontroller.
+        if (parentNode == ROOT_NODE) {
+            if (isTokenOwnerOrApproved(node, msg.sender) || 
+                msg.sender == subcontrollerService.subcontrollers(node) ){
+
+                // If all the checks have passed, set the new expiry. 
+                expiry = _normaliseExpiry(expiry, oldExpiry, maxExpiry);
+                super._setData(uint256(node), owner, fuses, expiry);
+
+            } else{
+                revert Unauthorised(node, msg.sender);
+            }
+        } else {
+            if (isTokenOwnerOrApproved(parentNode, msg.sender) ||
+                msg.sender == subcontrollerService.subcontrollers(node)) {
+                
+                // If all the checks have passed, set the new expiry. 
+                expiry = _normaliseExpiry(expiry, oldExpiry, maxExpiry);
+                super._setData(uint256(node), owner, fuses, expiry);
+
+            } else {
+                revert Unauthorised(node, msg.sender);
+            }
+        }
+
     }
 
     /**

@@ -1,49 +1,48 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import {INameWrapper, AUXDATA_LOCKED, IS_DOT_ETH} from "../wrapper/INameWrapper.sol";
+import {INameWrapper, SUBCONTROLLER_LOCKED, IS_DOT_ETH} from "./INameWrapper.sol";
 import {ERC20Recoverable} from "../utils/ERC20Recoverable.sol";
+import {ISubcontrollerService} from "./ISubcontrollerService.sol";
 
 error Unauthorised(bytes32 node, address addr);
-error AuxDataLocked(bytes32 node, bytes data);
+error SubcontrollerLocked(bytes32 node, address sub);
 
-contract AuxDataService is ERC20Recoverable {
+contract SubcontrollerService is ISubcontrollerService, ERC20Recoverable {
     
     INameWrapper public immutable nameWrapper;
     uint64 private constant GRACE_PERIOD = 90 days;
 
-    //A mapping of nodes to auxiliary data. 
-    mapping(bytes32 => bytes) public auxData;
-
-    event AuxDataChanged(bytes32 node, bytes data);
+    //A mapping of nodes to subcontrollers. 
+    mapping(bytes32 => address) public subcontrollers;
 
     constructor(INameWrapper _nameWrapper){
         nameWrapper = _nameWrapper;
     }
 
    /**
-     * @notice Checks if data is the auxiliary data of the node.
-     * @param node Namehash of the name to check
-     * @param data The data to check
-     * @return Whether or not the auxiliary data matches data
+     * @notice Checks if the subcontroller of the name matches the address.
+     * @param node The Namehash of the name to check.
+     * @param subcontroller The subcontroller to check.
+     * @return Whether or not the address matches the subcontroller. 
      */
 
-    function isAuxData(bytes32 node, bytes memory data)
+    function isSubcontroller(bytes32 node, address subcontroller)
         public
         view
         returns (bool)
     {
-        return _compareBytes(auxData[node], data);
+        return subcontrollers[node] == subcontroller;
     }
 
     /**
-     * @notice Set the auxiliary data of a subname. Only the owner of the parent name can do this.
+     * @notice Set the address of the subcontroller of the name. Only the owner of the parent name can do this.
      * @param parentNode Namehash of the parent name.
      * @param label Label as a string, e.g., 'vitalik' for vitalik.eth.
-     * @param data Data to use as auxiliary data for the name.
+     * @param subcontroller Address to use as the subcontroller of the name.
      */
 
-    function setAuxData(bytes32 parentNode, string memory label, bytes memory data) 
+    function setSubcontroller(bytes32 parentNode, string memory label, address subcontroller) 
         public 
     {
 
@@ -60,22 +59,14 @@ contract AuxDataService is ERC20Recoverable {
            revert Unauthorised(node, msg.sender);
         }
 
-        // If the AUXDATA_LOCKED fuse has not been burned set the auxiliary data. 
-        if (fuses & AUXDATA_LOCKED == 0 ) {
-            auxData[node] = data;
-            emit AuxDataChanged(node, data);
+        // If the SUBCONTROLLER_LOCKED fuse has not been burned set the subcontroller address. 
+        if (fuses & SUBCONTROLLER_LOCKED == 0 ) {
+            subcontrollers[node] = subcontroller;
+            emit SubcontrollerChanged(node, subcontroller);
         } else {
-            revert AuxDataLocked(node, auxData[node]);
+            revert SubcontrollerLocked(node, subcontrollers[node]);
         }
     }    
-
-    //Compare two bytes in memory using the length and hash of each. 
-    function _compareBytes(bytes memory val1, bytes memory val2) private pure returns (bool) {
-        if (val1.length != val2.length) {
-            return false;
-        }
-        return keccak256(val1) == keccak256(val2);
-    }
 
     // Make a namehash using a node and labelhash of the subname.
     function _makeNode(bytes32 node, bytes32 labelhash)
