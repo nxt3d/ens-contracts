@@ -499,42 +499,6 @@ contract NameWrapper is
         _setFuses(node, owner, fuses, expiry);
     }
 
-    /** 
-    /* @notice Renews a subname – extening the epiry. Can only be called by the parent name owner.
-     * @param parentNode The parent namehash of the name e.g. vitalik.xyz would be namehash('xyz').
-     * @param labelhash The labelhash of the name, e.g. vitalik.xyz would be keccak256('vitalik').
-     * @param expiry The time when the name will expire in seconds since the Unix epoch. 
-     */
-
-    function renewSubname(
-        bytes32 parentNode,
-        bytes32 labelhash,
-        uint64 expiry
-    ) public {
-
-        bytes32 node = _makeNode(parentNode, labelhash);
-        (address owner, uint32 fuses, uint64 oldExpiry) = getData(uint256(node));
-
-        // max expiry is set to the expiry of the parent
-        (, , uint64 maxExpiry) = getData(
-            uint256(parentNode)
-        );
-        
-        if (parentNode == ROOT_NODE) {
-            if (!isTokenOwnerOrApproved(node, msg.sender)) {
-                revert Unauthorised(node, msg.sender);
-            }
-        } else {
-            if (!isTokenOwnerOrApproved(parentNode, msg.sender)) {
-                revert Unauthorised(node, msg.sender);
-            }
-        }
-
-        // If all the checks have passed, set the new expiry. 
-        expiry = _normaliseExpiry(expiry, oldExpiry, maxExpiry);
-        super._setData(uint256(node), owner, fuses, expiry);
-    }
-
     /**
      * @notice Sets the subdomain owner in the registry and then wraps the subdomain
      * @param parentNode Parent namehash of the subdomain
