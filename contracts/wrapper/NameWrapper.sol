@@ -676,9 +676,9 @@ contract NameWrapper is
         override
     {
 
-        (address nodeOwner, uint32 fuses, uint64 expiry) = getData(uint256(node));
+        (address oldOwner, uint32 fuses, uint64 expiry) = getData(uint256(node));
 
-        if ((nodeOwner != msg.sender && !isApprovedForAll(nodeOwner, msg.sender)) || 
+        if ((oldOwner != msg.sender && !isApprovedForAll(oldOwner, msg.sender)) || 
             (fuses & IS_DOT_ETH != 0 && expiry - GRACE_PERIOD < block.timestamp)) {
             revert Unauthorised(node, msg.sender);
         }
@@ -694,7 +694,6 @@ contract NameWrapper is
             }
             _unwrap(node, address(0));
         } else {
-            address oldOwner = ownerOf(uint256(node));
             _transfer(oldOwner, owner, uint256(node), 1, "");
         }
     }
