@@ -684,7 +684,6 @@ contract NameWrapper is
 
         ens.setRecord(node, address(this), resolver, ttl);
         if (owner == address(0)) {
-            (, uint32 fuses, ) = getData(uint256(node));
             if (fuses & IS_DOT_ETH == IS_DOT_ETH) {
                 revert IncorrectTargetOwner(owner);
             }
