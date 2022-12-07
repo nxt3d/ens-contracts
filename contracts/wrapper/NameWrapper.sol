@@ -676,11 +676,13 @@ contract NameWrapper is
         override
     {
 
-        if (!canModifyName(node, msg.sender)) {
+        (address nodeOwner, uint32 fuses, uint64 expiry) = getData(uint256(node));
+
+        if ((nodeOwner != msg.sender && !isApprovedForAll(nodeOwner, msg.sender)) || 
+            (fuses & IS_DOT_ETH != 0 && expiry - GRACE_PERIOD < block.timestamp)) {
             revert Unauthorised(node, msg.sender);
         }
 
-        (, uint32 fuses, ) = getData(uint256(node));
         if (fuses & (CANNOT_TRANSFER | CANNOT_SET_RESOLVER | CANNOT_SET_TTL) != 0) {
             revert OperationProhibited(node);
         }
