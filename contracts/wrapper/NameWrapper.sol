@@ -675,11 +675,13 @@ contract NameWrapper is
         public
         override
         onlyTokenOwner(node)
-        operationAllowed(
-            node,
-            CANNOT_TRANSFER | CANNOT_SET_RESOLVER | CANNOT_SET_TTL
-        )
     {
+
+        (, uint32 fuses, ) = getData(uint256(node));
+        if (fuses & (CANNOT_TRANSFER | CANNOT_SET_RESOLVER | CANNOT_SET_TTL) != 0) {
+            revert OperationProhibited(node);
+        }
+
         ens.setRecord(node, address(this), resolver, ttl);
         if (owner == address(0)) {
             (, uint32 fuses, ) = getData(uint256(node));
