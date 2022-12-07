@@ -674,8 +674,11 @@ contract NameWrapper is
     )
         public
         override
-        onlyTokenOwner(node)
     {
+
+        if (!canModifyName(node, msg.sender)) {
+            revert Unauthorised(node, msg.sender);
+        }
 
         (, uint32 fuses, ) = getData(uint256(node));
         if (fuses & (CANNOT_TRANSFER | CANNOT_SET_RESOLVER | CANNOT_SET_TTL) != 0) {
