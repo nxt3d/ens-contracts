@@ -880,7 +880,6 @@ contract NameWrapper is
         return abi.encodePacked(uint8(bytes(label).length), label, name);
     }
 
-
     function _mint(
         bytes32 node,
         address owner,
