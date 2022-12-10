@@ -3,6 +3,7 @@ pragma solidity >=0.8.4;
 
 interface IPermaRecordResolver {
     event PermaRecordChanged(
+        address caller,
         bytes32 indexed node,
         string indexed indexedKey,
         string key,

@@ -24,7 +24,7 @@ abstract contract PermaRecordResolver is IPermaRecordResolver, ResolverBase {
         if (bytes(versionable_permaRecord[recordVersions[node]][node][key]).length == 0) {
             versionable_permaRecord[recordVersions[node]][node][key] = value;
         }
-        emit PermaRecordChanged(node, key, key, value);
+        emit PermaRecordChanged(msg.sender, node, key, key, value);
     }
 
     /**
