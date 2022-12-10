@@ -12,6 +12,7 @@ import "./profiles/IInterfaceResolver.sol";
 import "./profiles/INameResolver.sol";
 import "./profiles/IPubkeyResolver.sol";
 import "./profiles/ITextResolver.sol";
+import "./profiles/IPermaRecordResolver.sol";
 import "./profiles/IExtendedResolver.sol";
 
 /**
@@ -29,6 +30,7 @@ interface Resolver is
     INameResolver,
     IPubkeyResolver,
     ITextResolver,
+    IPermaRecordResolver,
     IExtendedResolver
 {
     /* Deprecated events */
@@ -61,6 +63,12 @@ interface Resolver is
     ) external;
 
     function setText(
+        bytes32 node,
+        string calldata key,
+        string calldata value
+    ) external;
+
+    function setPermaRecord(
         bytes32 node,
         string calldata key,
         string calldata value

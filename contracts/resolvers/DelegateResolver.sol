@@ -10,6 +10,7 @@ import "./profiles/InterfaceResolver.sol";
 import "./profiles/NameResolver.sol";
 import "./profiles/PubkeyResolver.sol";
 import "./profiles/TextResolver.sol";
+import "./profiles/PermaRecordResolver.sol";
 import "./Multicallable.sol";
 
 interface INameWrapper {
@@ -214,6 +215,8 @@ contract DelegateResolver is
     
      /**
      * Returns the address associated with an ENS node.
+     * @dev This is an override of addr in order to support aliases 
+     *      incluing overrides and defaults.
      * @param node The ENS node to query.
      * @return The associated address.
      */
