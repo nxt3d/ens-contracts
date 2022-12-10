@@ -17,10 +17,10 @@ interface INameWrapper {
 }
 
 /**
- * A simple resolver anyone can use; only allows the owner of a node to set its
- * address.
+ * A simple resolver anyone can use; only allows the owner of a node or an approved operator to set its
+ * address. Also it includes delegation and aliases includign overrides and defaults. 
  */
-contract PublicResolver is
+contract DelegateResolver is
     Multicallable,
     ABIResolver,
     AddrResolver,
@@ -47,23 +47,23 @@ contract PublicResolver is
     mapping(address => mapping(address => bool)) private _operatorApprovals;
 
     /**
-     * A mapping of delegates. An address (delegate) that is authorised by an address (owner)
-     * and a name (node) to may make changes to the name's resolver, but may not update
+     * A mapping of delegates. A delegate that is authorised by an owner
+     * for a name may make changes to the name's resolver, but may not update
      * the set of delegations.
      * (owner, name, delegate) => approved
      */
     mapping(address => mapping(bytes32 => mapping(address => bool))) private _nameDelegations;
 
     /**
-     * A mapping of overrides. A node that has an override set will check to see if the overide has
+     * A mapping of name overrides. A name that has an override set will check to see if the overide has
      * a value set before resolving.      
      * (owner, name) => override
      */
     mapping(address => mapping(bytes32 => bytes32)) private _overrides;
 
     /**
-     * A mapping of defaults. A node that has a default set, if there is no record set will
-     * fetch the record from the default node.      
+     * A mapping of name defaults. A name that has a default set, if its own record is not set, will
+     * fetch the record from the default name.      
      * (owner, name) => defalut
      */
     mapping(address => mapping(bytes32 => bytes32)) private _defaults;
@@ -76,21 +76,21 @@ contract PublicResolver is
         bool approved
     );
 
-    // Logged when an delegate is added or removed.
+    // Logged when a delegate is added or removed.
     event Delegated(
         address indexed owner,
         bytes32 indexed node,
         address indexed delegate
     );
 
-    // Logged when an override is added or removed.
+    // Logged when a override is added or removed.
     event Overridden(
         address owner,
         bytes32 node,
         bytes32 overrideNode
     );
 
-    // Logged when an override is added or removed.
+    // Logged when a default is added or removed.
     event DefaultSet(
         address owner,
         bytes32 node,
@@ -183,7 +183,7 @@ contract PublicResolver is
     function SetDefault(bytes32 node, bytes32 defaultNode) external {
 
         _defaults[msg.sender][node] = defaultNode;
-        emit Overridden(msg.sender, node, defaultNode);
+        emit DefaultSet(msg.sender, node, defaultNode);
     }
 
     /**
@@ -242,21 +242,23 @@ contract PublicResolver is
             if (addrOverridden.length != 0) {
                 return bytesToAddress(addrOverridden);
             }
-
+        
         } else if ( addressEth.length == 0){
-            //if the addres is empty check the default address
+            //if the address is empty check the default address
+            if (isDefaultSet(owner, node)){
+                bytes memory addrDefault = addr(_defaults[owner][node], COIN_TYPE_ETH);
 
-            bytes memory addrDefault = addr(_defaults[owner][node], COIN_TYPE_ETH);
+                // If the defualt address is also 0 then return the 0 address payable. 
+                if (addrDefault.length == 0) {
+                    return payable(0);
+                }
 
-            if (addrDefault.length == 0) {
-                return payable(0);
-            }
-
-            return bytesToAddress(addrDefault);
+                return bytesToAddress(addrDefault);
+            } 
         } else {
 
-            // If there is no override or default returned, return the ETH address.
-            return bytesToAddress(addressEth);
+                // If there is no override or default returned, return the ETH address.
+                return bytesToAddress(addressEth);
         }
     }
 
