@@ -30,7 +30,8 @@ contract DelegateResolver is
     InterfaceResolver,
     NameResolver,
     PubkeyResolver,
-    TextResolver
+    TextResolver,
+    PermaRecordResolver
 {
     ENS immutable ens;
     INameWrapper immutable nameWrapper;
@@ -277,7 +278,8 @@ contract DelegateResolver is
             InterfaceResolver,
             NameResolver,
             PubkeyResolver,
-            TextResolver
+            TextResolver,
+            PermaRecordResolver
         )
         returns (bool)
     {
