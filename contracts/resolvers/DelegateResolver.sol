@@ -108,7 +108,7 @@ contract DelegateResolver is
     /**
      * @dev Set a delegation.
      */
-    function SetDelegation(bytes32 node, address delegate, bool approved) external {
+    function setDelegation(bytes32 node, address delegate, bool approved) external {
         require(
             msg.sender != delegate,
             "Setting delegate status for self"
