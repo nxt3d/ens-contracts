@@ -1,5 +1,5 @@
 const ENS = artifacts.require('./registry/ENSRegistry.sol')
-const PublicResolver = artifacts.require('PublicResolver.sol')
+const DelegateResolver = artifacts.require('DelegateResolver.sol')
 const NameWrapper = artifacts.require('DummyNameWrapper.sol')
 
 const { expect } = require('chai')
@@ -8,7 +8,7 @@ const sha3 = require('web3-utils').sha3
 
 const { exceptions } = require('../test-utils')
 
-contract('PublicResolver', function(accounts) {
+contract('DelegateResolver', function(accounts) {
   let node
   let ens, resolver, nameWrapper
   const EMPTY_ADDRESS = '0x0000000000000000000000000000000000000000'
@@ -17,7 +17,7 @@ contract('PublicResolver', function(accounts) {
     node = namehash.hash('eth')
     ens = await ENS.new()
     nameWrapper = await NameWrapper.new()
-    resolver = await PublicResolver.new(
+    resolver = await DelegateResolver.new(
       ens.address,
       nameWrapper.address,
       accounts[9], // trusted contract
@@ -1062,6 +1062,88 @@ contract('PublicResolver', function(accounts) {
       await basicSetInterface()
       await resolver.clearRecords(node)
       assert.equal(await resolver.interfaceImplementer(node, '0x12345678'), '0x0000000000000000000000000000000000000000')
+    })
+  })
+
+  describe('delegations', async () => {
+    it('permits delegate to be set', async () => {
+      await resolver.setDelegation(node, accounts[1], true, {
+        from: accounts[0],
+      })
+      assert.equal(
+        await resolver.isDelegatedTo(accounts[0], node, accounts[1]),
+        true
+      )
+    })
+
+    it('permits delegated users to make changes', async () => {
+      await resolver.setDelegation(node, accounts[1], true, {
+        from: accounts[0],
+      })
+      assert.equal(
+        await resolver.isDelegatedTo(await ens.owner(node), node, accounts[1]),
+        true
+      )
+      await resolver.methods['setAddr(bytes32,address)'](node, accounts[1], {
+        from: accounts[1],
+      })
+      assert.equal(await resolver.addr(node), accounts[1])
+    })
+
+    it('permits delegations to be cleared', async () => {
+      await resolver.setDelegation(node, accounts[1], false, {
+        from: accounts[0],
+      })
+      await exceptions.expectFailure(
+        resolver.methods['setAddr(bytes32,address)'](node, accounts[0], {
+          from: accounts[1],
+        })
+      )
+    })
+
+    it('permits non-owners to set delegations', async () => {
+      await resolver.setDelegation(node, accounts[2], true, {
+        from: accounts[1],
+      })
+
+      // The delegation should have no effect, because accounts[1] is not the owner.
+      await exceptions.expectFailure(
+        resolver.methods['setAddr(bytes32,address)'](node, accounts[0], {
+          from: accounts[2],
+        })
+      )
+    })
+
+    it('checks the delegation for the current owner', async () => {
+      await resolver.setDelegation(node, accounts[2], true, {
+        from: accounts[1],
+      })
+      await ens.setOwner(node, accounts[1], { from: accounts[0] })
+
+      await resolver.methods['setAddr(bytes32,address)'](node, accounts[0], {
+        from: accounts[2],
+      })
+      assert.equal(await resolver.addr(node), accounts[0])
+    })
+
+    it('emits a Delegated log', async () => {
+      var owner = accounts[0]
+      var delegate = accounts[1]
+      var tx = await resolver.setDelegation(node, delegate, true, {
+        from: owner,
+      })
+      assert.equal(tx.logs.length, 1)
+      assert.equal(tx.logs[0].event, 'Delegated')
+      assert.equal(tx.logs[0].args.owner, owner)
+      assert.equal(tx.logs[0].args.node, node)
+      assert.equal(tx.logs[0].args.delegate, delegate)
+      assert.equal(tx.logs[0].args.approved, true)
+    })
+
+    it('reverts if attempting to delegate self as an operator', async () => {
+      await expect(
+        resolver.setDelegation(node, accounts[1], true, { from: accounts[1] })
+      ).to.be.revertedWith('Setting delegate status for self')
     })
   })
 
