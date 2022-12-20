@@ -63,9 +63,10 @@ contract DelegateResolver is
 
     // Logged when a delegate is added or removed.
     event Delegated(
-        address indexed owner,
+        address owner,
         bytes32 indexed node,
-        address indexed delegate
+        address indexed delegate,
+        bool indexed approved
     );
 
     constructor(
@@ -107,14 +108,14 @@ contract DelegateResolver is
     /**
      * @dev Set a delegation.
      */
-    function SetDelegation(bytes32 node, address delegate) external {
+    function SetDelegation(bytes32 node, address delegate, bool approved) external {
         require(
             msg.sender != delegate,
             "Setting delegate status for self"
         );
 
-        _nameDelegations[msg.sender][node][delegate] = true;
-        emit Delegated(msg.sender, node, delegate);
+        _nameDelegations[msg.sender][node][delegate] = approved;
+        emit Delegated(msg.sender, node, delegate, approved);
     }
 
     /**
