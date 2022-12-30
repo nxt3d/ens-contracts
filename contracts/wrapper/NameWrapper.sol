@@ -12,7 +12,7 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {BytesUtils} from "./BytesUtils.sol";
 import {ERC20Recoverable} from "../utils/ERC20Recoverable.sol";
-import {ISubcontrollerService} from "./ISubcontrollerService.sol";
+import {ILightcontrollerService} from "./ILightcontrollerService.sol";
 
 error Unauthorised(bytes32 node, address addr);
 error IncompatibleParent();
@@ -49,17 +49,19 @@ contract NameWrapper is
         0x0000000000000000000000000000000000000000000000000000000000000000;
 
     INameWrapperUpgrade public upgradeContract;
-    ISubcontrollerService public subcontrollerService;
+    ILightcontrollerService public lightcontrollerService;
     uint64 private constant MAX_EXPIRY = type(uint64).max;
 
     constructor(
         ENS _ens,
         IBaseRegistrar _registrar,
-        IMetadataService _metadataService
+        IMetadataService _metadataService,
+        ILightcontrollerService _lightcontrollerService
     ) {
         ens = _ens;
         registrar = _registrar;
         metadataService = _metadataService;
+        lightcontrollerService = _lightcontrollerService;
 
         /* Burn PARENT_CANNOT_CONTROL and CANNOT_UNWRAP fuses for ROOT_NODE and ETH_NODE */
 
@@ -502,8 +504,7 @@ contract NameWrapper is
     }
 
     /** 
-    /* @notice Renews a subname – extening the epiry. Can only be called by the parent name owner
-            // or if the name has a subcontroller the sender can be the subcontroller address. 
+    /* @notice Renews a subname – extening the expiry. Can only be called by the parent name owner.
      * @param parentNode The parent namehash of the name e.g. vitalik.xyz would be namehash('xyz').
      * @param labelhash The labelhash of the name, e.g. vitalik.xyz would be keccak256('vitalik').
      * @param expiry The time when the name will expire in seconds since the Unix epoch. 
@@ -523,10 +524,10 @@ contract NameWrapper is
             uint256(parentNode)
         );
         
-        // Revert if the sender is not the owner or approved by the owner or a subcontroller.
+        // Revert if the sender is not the owner or approved by the owner or a lightcontroller.
         if (parentNode == ROOT_NODE) {
             if (isTokenOwnerOrApproved(node, msg.sender) || 
-                msg.sender == subcontrollerService.subcontrollers(node) ){
+                msg.sender == lightcontrollerService.lightcontrollers(node) ){
 
                 // If all the checks have passed, set the new expiry. 
                 expiry = _normaliseExpiry(expiry, oldExpiry, maxExpiry);
@@ -537,7 +538,7 @@ contract NameWrapper is
             }
         } else {
             if (isTokenOwnerOrApproved(parentNode, msg.sender) ||
-                msg.sender == subcontrollerService.subcontrollers(node)) {
+                msg.sender == lightcontrollerService.lightcontrollers(node)) {
                 
                 // If all the checks have passed, set the new expiry. 
                 expiry = _normaliseExpiry(expiry, oldExpiry, maxExpiry);

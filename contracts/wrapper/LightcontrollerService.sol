@@ -1,20 +1,20 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import {INameWrapper, SUBCONTROLLER_LOCKED, IS_DOT_ETH} from "./INameWrapper.sol";
+import {INameWrapper, LIGHTCONTROLLER_LOCKED, IS_DOT_ETH} from "./INameWrapper.sol";
 import {ERC20Recoverable} from "../utils/ERC20Recoverable.sol";
-import {ISubcontrollerService} from "./ISubcontrollerService.sol";
+import {ILightcontrollerService} from "./ILightcontrollerService.sol";
 
 error Unauthorised(bytes32 node, address addr);
 error SubcontrollerLocked(bytes32 node, address sub);
 
-contract SubcontrollerService is ISubcontrollerService, ERC20Recoverable {
+contract LightcontrollerService is ILightcontrollerService, ERC20Recoverable {
     
     INameWrapper public immutable nameWrapper;
     uint64 private constant GRACE_PERIOD = 90 days;
 
     //A mapping of nodes to subcontrollers. 
-    mapping(bytes32 => address) public subcontrollers;
+    mapping(bytes32 => address) public lightcontrollers;
 
     constructor(INameWrapper _nameWrapper){
         nameWrapper = _nameWrapper;
@@ -23,26 +23,26 @@ contract SubcontrollerService is ISubcontrollerService, ERC20Recoverable {
    /**
      * @notice Checks if the subcontroller of the name matches the address.
      * @param node The Namehash of the name to check.
-     * @param subcontroller The subcontroller to check.
+     * @param lightcontroller The subcontroller to check.
      * @return Whether or not the address matches the subcontroller. 
      */
 
-    function isSubcontroller(bytes32 node, address subcontroller)
+    function isLightcontroller(bytes32 node, address lightcontroller)
         public
         view
         returns (bool)
     {
-        return subcontrollers[node] == subcontroller;
+        return lightcontrollers[node] == lightcontroller;
     }
 
     /**
      * @notice Set the address of the subcontroller of the name. Only the owner of the parent name can do this.
      * @param parentNode Namehash of the parent name.
      * @param label Label as a string, e.g., 'vitalik' for vitalik.eth.
-     * @param subcontroller Address to use as the subcontroller of the name.
+     * @param lightcontroller Address to use as the subcontroller of the name.
      */
 
-    function setSubcontroller(bytes32 parentNode, string memory label, address subcontroller) 
+    function setLightcontroller(bytes32 parentNode, string memory label, address lightcontroller) 
         public 
     {
 
@@ -60,11 +60,11 @@ contract SubcontrollerService is ISubcontrollerService, ERC20Recoverable {
         }
 
         // If the SUBCONTROLLER_LOCKED fuse has not been burned set the subcontroller address. 
-        if (fuses & SUBCONTROLLER_LOCKED == 0 ) {
-            subcontrollers[node] = subcontroller;
-            emit SubcontrollerChanged(node, subcontroller);
+        if (fuses & LIGHTCONTROLLER_LOCKED == 0 ) {
+            lightcontrollers[node] = lightcontroller;
+            emit LightcontrollerChanged(node, lightcontroller);
         } else {
-            revert SubcontrollerLocked(node, subcontrollers[node]);
+            revert SubcontrollerLocked(node, lightcontrollers[node]);
         }
     }    
 
