@@ -16,6 +16,7 @@ uint32 constant CANNOT_CREATE_SUBDOMAIN = 32;
 uint32 constant PARENT_CANNOT_CONTROL = 1 << 16;
 uint32 constant IS_DOT_ETH = 1 << 17;
 uint32 constant CAN_EXTEND_EXPIRY = 1 << 18;
+uint32 constant CAN_EXTEND_EXPIRY_WITH_CONTROLLER = 1 << 19;
 uint32 constant CAN_DO_EVERYTHING = 0;
 uint32 constant PARENT_CONTROLLED_FUSES = 0xFFFF0000;
 // all fuses apart from IS_DOT_ETH
