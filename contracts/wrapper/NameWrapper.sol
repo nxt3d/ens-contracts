@@ -12,6 +12,7 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {BytesUtils} from "./BytesUtils.sol";
 import {ERC20Recoverable} from "../utils/ERC20Recoverable.sol";
+import {IExpiryControllable} from "./IExpiryControllable.sol";
 
 error Unauthorised(bytes32 node, address addr);
 error IncompatibleParent();
@@ -48,16 +49,20 @@ contract NameWrapper is
         0x0000000000000000000000000000000000000000000000000000000000000000;
 
     INameWrapperUpgrade public upgradeContract;
+    IExpiryControllable public expiryControllable;
+
     uint64 private constant MAX_EXPIRY = type(uint64).max;
 
     constructor(
         ENS _ens,
         IBaseRegistrar _registrar,
-        IMetadataService _metadataService
+        IMetadataService _metadataService,
+        IExpiryControllable _expiryControllable
     ) {
         ens = _ens;
         registrar = _registrar;
         metadataService = _metadataService;
+        expiryControllable = _expiryControllable;
 
         /* Burn PARENT_CANNOT_CONTROL and CANNOT_UNWRAP fuses for ROOT_NODE and ETH_NODE */
 
@@ -398,14 +403,14 @@ contract NameWrapper is
     }
 
     /**
-     * @notice Sets expiry for a name
+     * @notice Extends expiry for a name
      * @param parentNode Parent namehash of the name e.g. vitalik.xyz would be namehash('xyz')
      * @param labelhash Labelhash of the name, e.g. vitalik.xyz would be keccak256('vitalik')
      * @param expiry When the name will expire in seconds since the Unix epoch
      * @return New expiry
      */
 
-    function setExpiry(
+    function extendExpiry(
         bytes32 parentNode,
         bytes32 labelhash,
         uint64 expiry
@@ -414,33 +419,30 @@ contract NameWrapper is
         returns (uint64)
     {
         bytes32 node = _makeNode(parentNode, labelhash);
+        (address owner, uint32 fuses, uint64 oldExpiry) = getData( uint256(node));
 
-        // this flag is used later, when checking fuses
-        bool canModifyParentName = canModifyName(parentNode, msg.sender);
-        // only allow the owner of the name or owner of the parent name
-        if (!canModifyParentName && !canModifyName(node, msg.sender)) {
+        // The max expiry is set to the expiry of the parent.
+        (, , uint64 maxExpiry) = getData( uint256(parentNode));
+
+        // Set the expiry between the old expiry and the max expiry. 
+        expiry = _normaliseExpiry(expiry, oldExpiry, maxExpiry);
+
+        // Allow the owner of the name to extend the expiry.
+        if (canModifyName(parentNode, msg.sender)){
+
+            super._setData(uint256(node), owner, fuses, expiry);
+            emit ExtendExpiry(node, expiry);
+
+        } else if (expiryControllable.isExpiryController(node, msg.sender)){
+            // If there is a expiry controller in place.
+
+            super._setData(uint256(node), owner, fuses, expiry);
+            emit ExtendExpiry(node, expiry);
+        
+        } else {
             revert Unauthorised(node, msg.sender);
         }
 
-        (address owner, uint32 fuses, uint64 oldExpiry) = getData(
-            uint256(node)
-        );
-
-        // the parent owner can always set expiry, so no need to check fuses
-        if (!canModifyParentName) {
-            // revert if CAN_EXTEND_EXPIRY parent-controlled fuse has not been burned
-            if (fuses & CAN_EXTEND_EXPIRY == 0) {
-                revert OperationProhibited(node);
-            }
-        }
-
-        // max expiry is set to the expiry of the parent
-        (, , uint64 maxExpiry) = getData(
-            uint256(parentNode)
-        );
-        expiry = _normaliseExpiry(expiry, oldExpiry, maxExpiry);
-
-        _setFuses(node, owner, fuses, expiry);
         return expiry;
     }
 
