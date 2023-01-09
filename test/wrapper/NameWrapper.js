@@ -2684,7 +2684,7 @@ describe('Name Wrapper', () => {
           labelhash('sub'),
           MAX_EXPIRY
         )
-      ).to.be.revertedWith(`OperationProhibited("${subWrappedTokenId}")`)
+      ).to.be.revertedWith(`Unauthorised("${subWrappedTokenId}", "${account2}")`)
     })
 
     it('Allows child owner to set expiry with CAN_EXTEND_EXPIRY burned', async () => {
@@ -2732,7 +2732,7 @@ describe('Name Wrapper', () => {
           labelhash('sub'),
           MAX_EXPIRY
         )
-      ).to.be.revertedWith(`OperationProhibited("${subWrappedTokenId}")`)
+      ).to.be.revertedWith(`Unauthorised("${subWrappedTokenId}", "${hacker}")`)
     })
 
     it('Allows approved operator of child owner to set expiry with CAN_EXTEND_EXPIRY burned', async () => {
@@ -2785,10 +2785,9 @@ describe('Name Wrapper', () => {
 
     it('Does not allow owner of .eth 2LD to set expiry', async () => {
       await registerSetupAndWrapName('fuses', account, CANNOT_UNWRAP)
+      const token2LD = namehash('fuses.eth')
 
-      let [, fuses, expiry] = await NameWrapper.getData(
-        namehash('fuses.eth')
-      )
+      let [, fuses, expiry] = await NameWrapper.getData(token2LD)
 
       expect(fuses).to.equal(IS_DOT_ETH | PARENT_CANNOT_CONTROL | CANNOT_UNWRAP)
 
@@ -2798,7 +2797,7 @@ describe('Name Wrapper', () => {
           tokenId,
           expiry
         )
-      ).to.be.revertedWith(`OperationProhibited("${wrappedTokenId}")`)
+      ).to.be.revertedWith(`Unauthorised("${token2LD}", "${account}")`)
     })
 
     it('Allows parent owner of non-Emancipated name to set expiry', async () => {
@@ -3021,7 +3020,7 @@ describe('Name Wrapper', () => {
           labelhash('sub'),
           MAX_EXPIRY
         )
-      ).to.be.revertedWith(`OperationProhibited("${subWrappedTokenId}")`)
+      ).to.be.revertedWith(`Unauthorised("${subWrappedTokenId}", "${account2}")`)
     })
 
     it('Allows parent owner to set expiry if Emancipated child name has expired, but owner remains burnt', async () => {
@@ -3093,10 +3092,9 @@ describe('Name Wrapper', () => {
         MAX_EXPIRY
       )
       await expect(tx)
-        .to.emit(NameWrapper, 'FusesSet')
+        .to.emit(NameWrapper, 'ExtendExpiry')
         .withArgs(
           namehash(`sub.${label}.eth`),
-          PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | CAN_EXTEND_EXPIRY,
           parentExpiry.add(GRACE_PERIOD)
         )
     })
