@@ -2534,7 +2534,7 @@ describe('Name Wrapper', () => {
     })
   })
 
-  describe('setExpiry()', () => {
+  describe('extendExpiry()', () => {
     const label = 'fuses'
     const tokenId = labelhash(label)
     const wrappedTokenId = namehash(`${label}.eth`)
@@ -2552,7 +2552,7 @@ describe('Name Wrapper', () => {
       expect(fuses).to.equal(PARENT_CANNOT_CONTROL | CANNOT_UNWRAP)
       expect(expiry).to.equal(parentExpiry - 3600)
 
-      await NameWrapper.setExpiry(
+      await NameWrapper.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         MAX_EXPIRY
@@ -2576,7 +2576,7 @@ describe('Name Wrapper', () => {
       expect(fuses).to.equal(PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | CAN_EXTEND_EXPIRY)
       expect(expiry).to.equal(parentExpiry - 3600)
 
-      await NameWrapper.setExpiry(
+      await NameWrapper.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         MAX_EXPIRY
@@ -2600,7 +2600,7 @@ describe('Name Wrapper', () => {
       expect(fuses).to.equal(PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | CAN_EXTEND_EXPIRY)
       expect(expiry).to.equal(parentExpiry - 3600)
 
-      await NameWrapper.setExpiry(
+      await NameWrapper.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         MAX_EXPIRY
@@ -2627,7 +2627,7 @@ describe('Name Wrapper', () => {
       // approve hacker for anything account owns
       await NameWrapper.setApprovalForAll(hacker, true)
 
-      await NameWrapperH.setExpiry(
+      await NameWrapperH.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         MAX_EXPIRY
@@ -2654,7 +2654,7 @@ describe('Name Wrapper', () => {
       // approve hacker for anything account owns
       await NameWrapper.setApprovalForAll(hacker, true)
 
-      await NameWrapperH.setExpiry(
+      await NameWrapperH.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         MAX_EXPIRY
@@ -2679,7 +2679,7 @@ describe('Name Wrapper', () => {
       expect(expiry).to.equal(parentExpiry - 3600)
 
       await expect(
-        NameWrapper2.setExpiry(
+        NameWrapper2.extendExpiry(
           wrappedTokenId,
           labelhash('sub'),
           MAX_EXPIRY
@@ -2699,7 +2699,7 @@ describe('Name Wrapper', () => {
       expect(fuses).to.equal(PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | CAN_EXTEND_EXPIRY)
       expect(expiry).to.equal(parentExpiry - 3600)
 
-      await NameWrapper2.setExpiry(
+      await NameWrapper2.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         MAX_EXPIRY
@@ -2727,7 +2727,7 @@ describe('Name Wrapper', () => {
       await NameWrapper2.setApprovalForAll(hacker, true)
 
       await expect(
-        NameWrapperH.setExpiry(
+        NameWrapperH.extendExpiry(
           wrappedTokenId,
           labelhash('sub'),
           MAX_EXPIRY
@@ -2750,7 +2750,7 @@ describe('Name Wrapper', () => {
       // approve hacker for anything account2 owns
       await NameWrapper2.setApprovalForAll(hacker, true)
 
-      await NameWrapperH.setExpiry(
+      await NameWrapperH.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         MAX_EXPIRY
@@ -2775,7 +2775,7 @@ describe('Name Wrapper', () => {
       expect(expiry).to.equal(parentExpiry - 3600)
 
       await expect(
-        NameWrapperH.setExpiry(
+        NameWrapperH.extendExpiry(
           wrappedTokenId,
           labelhash('sub'),
           MAX_EXPIRY
@@ -2793,7 +2793,7 @@ describe('Name Wrapper', () => {
       expect(fuses).to.equal(IS_DOT_ETH | PARENT_CANNOT_CONTROL | CANNOT_UNWRAP)
 
       await expect(
-        NameWrapper.setExpiry(
+        NameWrapper.extendExpiry(
           namehash('eth'),
           tokenId,
           expiry
@@ -2813,7 +2813,7 @@ describe('Name Wrapper', () => {
       expect(fuses).to.equal(0)
       expect(expiry).to.equal(parentExpiry - 3600)
 
-      await NameWrapper.setExpiry(
+      await NameWrapper.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         MAX_EXPIRY
@@ -2837,7 +2837,7 @@ describe('Name Wrapper', () => {
       expect(fuses).to.equal(CAN_EXTEND_EXPIRY)
       expect(expiry).to.equal(parentExpiry - 3600)
 
-      await NameWrapper2.setExpiry(
+      await NameWrapper2.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         MAX_EXPIRY
@@ -2861,7 +2861,7 @@ describe('Name Wrapper', () => {
       expect(fuses).to.equal(PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | CAN_EXTEND_EXPIRY)
       expect(expiry).to.equal(parentExpiry - 3600)
 
-      await NameWrapper2.setExpiry(
+      await NameWrapper2.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         parentExpiry - 3601
@@ -2885,7 +2885,7 @@ describe('Name Wrapper', () => {
       expect(fuses).to.equal(PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | CAN_EXTEND_EXPIRY)
       expect(expiry).to.equal(parentExpiry - 3600)
 
-      await NameWrapper2.setExpiry(
+      await NameWrapper2.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         parentExpiry.add(GRACE_PERIOD + 1)
@@ -2909,7 +2909,7 @@ describe('Name Wrapper', () => {
       expect(fuses).to.equal(PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | CAN_EXTEND_EXPIRY)
       expect(expiry).to.equal(parentExpiry - 3600)
 
-      await NameWrapper2.setExpiry(
+      await NameWrapper2.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         parentExpiry - 1800
@@ -2938,7 +2938,7 @@ describe('Name Wrapper', () => {
       await mine()
 
       await expect(
-        NameWrapper.setExpiry(
+        NameWrapper.extendExpiry(
           wrappedTokenId,
           labelhash('sub'),
           MAX_EXPIRY
@@ -2962,7 +2962,7 @@ describe('Name Wrapper', () => {
       await increaseTime(DAY + 1)
       await mine()
 
-      await NameWrapper2.setExpiry(
+      await NameWrapper2.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         MAX_EXPIRY
@@ -2991,7 +2991,7 @@ describe('Name Wrapper', () => {
       await mine()
 
       await expect(
-        NameWrapper2.setExpiry(
+        NameWrapper2.extendExpiry(
           wrappedTokenId,
           labelhash('sub'),
           MAX_EXPIRY
@@ -3016,7 +3016,7 @@ describe('Name Wrapper', () => {
       await mine()
 
       await expect(
-        NameWrapper2.setExpiry(
+        NameWrapper2.extendExpiry(
           wrappedTokenId,
           labelhash('sub'),
           MAX_EXPIRY
@@ -3040,7 +3040,7 @@ describe('Name Wrapper', () => {
       await increaseTime(3601)
       await mine()
 
-      await NameWrapper.setExpiry(
+      await NameWrapper.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         MAX_EXPIRY
@@ -3069,7 +3069,7 @@ describe('Name Wrapper', () => {
       await increaseTime(3601)
       await mine()
 
-      await NameWrapper.setExpiry(
+      await NameWrapper.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         MAX_EXPIRY
@@ -3087,7 +3087,7 @@ describe('Name Wrapper', () => {
       const parentExpiry = await BaseRegistrar.nameExpires(tokenId)
       await NameWrapper.setSubnodeOwner(wrappedTokenId, 'sub', account2, PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | CAN_EXTEND_EXPIRY, parentExpiry - 3600)
 
-      const tx = await NameWrapper2.setExpiry(
+      const tx = await NameWrapper2.extendExpiry(
         wrappedTokenId,
         labelhash('sub'),
         MAX_EXPIRY
