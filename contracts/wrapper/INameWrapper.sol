@@ -65,6 +65,12 @@ interface INameWrapper is IERC1155 {
         uint16 ownerControlledFuses
     ) external returns (uint256 registrarExpiry);
 
+    function extendExpiry(
+        bytes32 parentNode,
+        bytes32 labelhash,
+        uint64 expiry
+    ) external returns (uint64);
+
     function renew(
         uint256 labelHash,
         uint256 duration
