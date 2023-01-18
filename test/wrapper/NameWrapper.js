@@ -5848,6 +5848,26 @@ describe('Name Wrapper', () => {
       expect(owner).to.equal(account)
     })
 
+    it.only('Renews names in the BaseRegistrar and can extend wrapper expiry', async () => {
+      await NameWrapper.registerAndWrapETH2LD(
+        label,
+        account,
+        86400,
+        EMPTY_ADDRESS,
+        CAN_DO_EVERYTHING,
+      )
+      const expires = await BaseRegistrar.nameExpires(labelHash)
+      const expectedExpiry = expires.toNumber() + 86400
+      await BaseRegistrar.renew(labelHash, 86400)
+      expect(await BaseRegistrar.nameExpires(labelHash)).to.equal(
+        expires.toNumber() + 86400,
+      )
+      const [owner, , expiry] = await NameWrapper.getData(wrappedTokenId)
+
+      expect(expiry).to.equal(expectedExpiry + GRACE_PERIOD)
+      expect(owner).to.equal(account)
+    })
+
     it('Renewing name less than required to unexpire it still has original owner/fuses', async () => {
       await NameWrapper.registerAndWrapETH2LD(
         label,
