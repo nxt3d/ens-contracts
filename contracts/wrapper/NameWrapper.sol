@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ~0.8.17;
 
-import {ERC1155Fuse, IERC165} from "./ERC1155Fuse.sol";
+import {ERC1155Fuse, IERC165, IERC1155MetadataURI} from "./ERC1155Fuse.sol";
 import {Controllable} from "./Controllable.sol";
 import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, PARENT_CANNOT_CONTROL, CAN_DO_EVERYTHING, IS_DOT_ETH, CAN_EXTEND_EXPIRY, PARENT_CONTROLLED_FUSES, USER_SETTABLE_FUSES} from "./INameWrapper.sol";
 import {INameWrapperUpgrade} from "./INameWrapperUpgrade.sol";
@@ -82,8 +82,7 @@ contract NameWrapper is
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        virtual
-        override(ERC1155Fuse, IERC165)
+        override(ERC1155Fuse, INameWrapper)
         returns (bool)
     {
         return
@@ -152,7 +151,7 @@ contract NameWrapper is
      * @return string uri of the metadata service
      */
 
-    function uri(uint256 tokenId) public view override returns (string memory) {
+    function uri(uint256 tokenId) public view override(INameWrapper, IERC1155MetadataURI) returns (string memory) {
         return metadataService.uri(tokenId);
     }
 
@@ -203,7 +202,6 @@ contract NameWrapper is
     function canModifyName(bytes32 node, address addr)
         public
         view
-        override
         returns (bool)
     {
         (address owner, uint32 fuses, uint64 expiry) = getData(uint256(node));
@@ -227,7 +225,7 @@ contract NameWrapper is
         address wrappedOwner,
         uint16 ownerControlledFuses,
         address resolver
-    ) public override {
+    ) public {
         uint256 tokenId = uint256(keccak256(bytes(label)));
         address registrant = registrar.ownerOf(tokenId);
         if (
@@ -266,7 +264,7 @@ contract NameWrapper is
         uint256 duration,
         address resolver,
         uint16 ownerControlledFuses
-    ) external override onlyController returns (uint256 registrarExpiry) {
+    ) external onlyController returns (uint256 registrarExpiry) {
         uint256 tokenId = uint256(keccak256(bytes(label)));
         registrarExpiry = registrar.register(tokenId, address(this), duration);
         _wrapETH2LD(label, wrappedOwner, ownerControlledFuses, resolver);
@@ -282,7 +280,6 @@ contract NameWrapper is
 
     function renew(uint256 tokenId, uint256 duration)
         external
-        override
         onlyController
         returns (uint256 expires)
     {
@@ -324,7 +321,7 @@ contract NameWrapper is
         bytes calldata name,
         address wrappedOwner,
         address resolver
-    ) public override {
+    ) public {
         (bytes32 labelhash, uint256 offset) = name.readLabel(0);
         bytes32 parentNode = name.namehash(offset);
         bytes32 node = _makeNode(parentNode, labelhash);
@@ -362,7 +359,7 @@ contract NameWrapper is
         bytes32 labelhash,
         address registrant,
         address controller
-    ) public override onlyTokenOwner(_makeNode(ETH_NODE, labelhash)) {
+    ) public onlyTokenOwner(_makeNode(ETH_NODE, labelhash)) {
         if (registrant == address(this)) {
             revert IncorrectTargetOwner(registrant);
         }
@@ -386,7 +383,7 @@ contract NameWrapper is
         bytes32 parentNode,
         bytes32 labelhash,
         address controller
-    ) public override onlyTokenOwner(_makeNode(parentNode, labelhash)) {
+    ) public onlyTokenOwner(_makeNode(parentNode, labelhash)) {
         if (parentNode == ETH_NODE) {
             revert IncompatibleParent();
         }
@@ -670,7 +667,6 @@ contract NameWrapper is
         uint64 ttl
     )
         public
-        override
         onlyTokenOwner(node)
         operationAllowed(
             node,
@@ -698,7 +694,6 @@ contract NameWrapper is
 
     function setResolver(bytes32 node, address resolver)
         public
-        override
         onlyTokenOwner(node)
         operationAllowed(node, CANNOT_SET_RESOLVER)
     {
@@ -713,7 +708,6 @@ contract NameWrapper is
 
     function setTTL(bytes32 node, uint64 ttl)
         public
-        override
         onlyTokenOwner(node)
         operationAllowed(node, CANNOT_SET_TTL)
     {
@@ -786,7 +780,6 @@ contract NameWrapper is
     function allFusesBurned(bytes32 node, uint32 fuseMask)
         public
         view
-        override
         returns (bool)
     {
         (, uint32 fuses, ) = getData(uint256(node));
@@ -804,7 +797,7 @@ contract NameWrapper is
         address,
         uint256 tokenId,
         bytes calldata data
-    ) public override returns (bytes4) {
+    ) public returns (bytes4) {
         //check if it's the eth registrar ERC721
         if (msg.sender != address(registrar)) {
             revert IncorrectTokenType();
