@@ -522,8 +522,23 @@ contract NameWrapper is
             uint256(node)
         );
 
-        // Either CAN_EXTEND_EXPIRY must be set, or the caller must have permission to modify the parent name
-        if (!canModifyParentSubname && fuses & CAN_EXTEND_EXPIRY == 0) {
+        // If the caller is the owner of the parent, then we can extend the expiry.
+        if (canModifyParentSubname) {
+            // max expiry is set to the expiry of the parent
+            (, , uint64 maxExpiry) = getData(uint256(parentNode));
+            expiry = _normaliseExpiry(expiry, oldExpiry, maxExpiry);
+
+            _setData(node, owner, fuses, expiry);
+            emit ExpiryExtended(node, expiry);
+
+            return expiry;
+        }
+
+        // Check to make sure the caller is the approved contract and CAN_EXTEND_EXPIRY is set.
+        if (
+            getApproved(uint256(node)) != msg.sender ||
+            fuses & CAN_EXTEND_EXPIRY == 0
+        ) {
             revert OperationProhibited(node);
         }
 
@@ -632,6 +647,7 @@ contract NameWrapper is
         bytes32 parentNode,
         string calldata label,
         address owner,
+        address approved,
         uint32 fuses,
         uint64 expiry
     ) public onlyTokenOwnerOrApproved(parentNode) returns (bytes32 node) {
@@ -644,6 +660,8 @@ contract NameWrapper is
 
         if (!_isWrapped(node)) {
             ens.setSubnodeOwner(parentNode, labelhash, address(this));
+            // Add an approved address
+            super._approve(approved, uint256(node));
             _wrap(node, name, owner, fuses, expiry);
         } else {
             _updateName(parentNode, node, label, owner, fuses, expiry);
