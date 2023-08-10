@@ -53,6 +53,9 @@ contract ETHRegistrarControllerProxy {
 contract ETHRegistrarAdmin is Ownable {
     using Address for address;
 
+    // A fuse that can be burned to prevent changing the owner of the registrar.
+    bool public cannotChangeRegistrarOwner;
+
     IBaseRegistrar public immutable registrar;
 
     constructor(address _registrar) {
@@ -77,6 +80,29 @@ contract ETHRegistrarAdmin is Ownable {
             );
         }
         return proxyAddress;
+    }
+
+    /**
+     * @dev Allows for changing the ownership of the registrar. This should only be done in the case of a bug, or other
+     *      issue found in the admin contract. This ability can be burned.
+     * @param newOwner The address of the new owner.
+     */
+
+    function changeOwner(address newOwner) external onlyOwner {
+        require(
+            !cannotChangeRegistrarOwner,
+            "cannotChangeRegistrarOwner fuse burned"
+        );
+        Ownable(address(registrar)).transferOwnership(newOwner);
+    }
+
+    /**
+     * @notice Allows for burning of the cannotChangeRegistrarOwner, preventing changing the owner of the registrar.
+     * @dev This should be done after the ETHRegistrarAdmin has been deployed successfully, and enough time has passed
+     *      to ensure that the ETHRegistrarAdmin is working as expected.
+     */
+    function burnChangeOwner() external onlyOwner {
+        cannotChangeRegistrarOwner = true;
     }
 
     /**

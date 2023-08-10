@@ -80,6 +80,9 @@ contract NameWrapperAdmin is Ownable, INameWrapperUpgrade {
     using BytesUtils for bytes;
     using Address for address;
 
+    // A fuse that can be burned to prevent changing the owner of the NameWrapper.
+    bool public cannotChangeNWOwner;
+
     INameWrapper public immutable wrapper;
     IBaseRegistrar public immutable registrar;
     ENS public immutable ens;
@@ -89,6 +92,26 @@ contract NameWrapperAdmin is Ownable, INameWrapperUpgrade {
         wrapper = INameWrapper(_wrapper);
         registrar = wrapper.registrar();
         ens = wrapper.ens();
+    }
+
+    /**
+     * @dev Allows for changing the ownership of the NameWrapper. This should only be done in the case of a bug, or other
+     *      issue found in the admin contract. This ability can be burned.
+     * @param newOwner The address of the new owner.
+     */
+
+    function changeOwner(address newOwner) external onlyOwner {
+        require(!cannotChangeNWOwner, "cannotChangeNWOwner fuse burned");
+        Ownable(address(wrapper)).transferOwnership(newOwner);
+    }
+
+    /**
+     * @notice Allows for burning of the cannotChangeNWOwner, preventing changing the owner of the NameWrapper.
+     * @dev This should be done after the NameWrapperAdmin has been deployed successfully, and enough time has passed
+     *      to ensure that the NameWrapperAdmin is working as expected.
+     */
+    function burnChangeOwner() external onlyOwner {
+        cannotChangeNWOwner = true;
     }
 
     /**
