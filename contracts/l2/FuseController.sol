@@ -45,22 +45,8 @@ contract FuseController is Ownable, IFuseController {
      * IController functions *
      *************************/
 
-    function ownerOfWithData(
-        bytes calldata tokenData
-    ) external view returns (address) {
-        (bool isExpired, address owner, , , , ) = _isExpired(tokenData);
-
-        if (isExpired) {
-            return address(0);
-        }
-        return owner;
-    }
-
     function ownerOf(bytes32 node) external view returns (address) {
-        //get the tokenData
-        bytes memory tokenData = registry.getData(uint256(node));
-
-        (bool isExpired, address owner, , , , ) = _isExpired(tokenData);
+        (bool isExpired, address owner, , , , ) = _isExpired(node);
 
         if (isExpired) {
             return address(0);
@@ -74,17 +60,12 @@ contract FuseController is Ownable, IFuseController {
         address operator,
         address from,
         address to,
-        uint256 /*id*/,
+        uint256 id,
         uint256 value,
         bytes calldata /*data*/,
         bool operatorApproved
     ) external view returns (bytes memory) {
         TokenData memory td;
-
-        // Make sure the tokenData is of the correct length.
-        if (tokenData.length < 96) {
-            revert("Invalid tokenData length");
-        }
 
         (
             td.owner,
@@ -101,7 +82,7 @@ contract FuseController is Ownable, IFuseController {
             operator == td.owner || operatorApproved,
             "Operator not approved"
         );
-        (bool isExpired, , , , , ) = _isExpired(tokenData);
+        (bool isExpired, , , , , ) = _isExpired(bytes32(id));
         require(!isExpired, "Token is expired");
 
         // Make sure the CANNOT_TRANSFER fuse is not burned.
@@ -122,7 +103,7 @@ contract FuseController is Ownable, IFuseController {
         bytes calldata tokenData,
         address operator,
         address from,
-        uint256 /*id*/,
+        uint256 id,
         uint256 value,
         bytes calldata /*data*/,
         bool operatorApproved
@@ -149,7 +130,7 @@ contract FuseController is Ownable, IFuseController {
             operator == td.owner || operatorApproved,
             "Operator not approved"
         );
-        (bool isExpired, , , , , ) = _isExpired(tokenData);
+        (bool isExpired, , , , , ) = _isExpired(bytes32(id));
         require(!isExpired, "Token is expired");
 
         // Make sure the CANNOT_BURN_NAME and CANNOT_TRANSFER fuse is not burned.
@@ -162,59 +143,56 @@ contract FuseController is Ownable, IFuseController {
     }
 
     function balanceOf(
-        bytes calldata tokenData,
+        bytes calldata /*tokenData*/,
         address _owner,
-        uint256 /*id*/
+        uint256 id
     ) external view returns (uint256) {
-        // if the tokenData is not of the correct length, return 0.
-        if (tokenData.length < 96) {
-            return 0;
-        }
-
-        (bool isExpired, address owner, , , , ) = _isExpired(tokenData);
+        (bool isExpired, address owner, , , , ) = _isExpired(bytes32(id));
         if (isExpired) {
             return 0;
         }
         return _owner == owner ? 1 : 0;
     }
 
-    function resolverFor(
-        bytes calldata tokenData
-    ) external view returns (address) {
-        // if the tokenData is not of the correct length, return 0.
-        if (tokenData.length < 96) {
-            return address(0);
-        }
-
-        (bool isExpired, , address resolver, , , ) = _isExpired(tokenData);
+    function resolverFor(bytes32 node) external view returns (address) {
+        (bool isExpired, , address resolver, , , ) = _isExpired(node);
         if (isExpired) {
             return address(0);
         }
         return resolver;
     }
 
-    function expiryOf(bytes32 node) external view returns (uint64) {
+    function expiryOf(bytes32 node) public view returns (uint64) {
         // get the tokenData
         bytes memory tokenData = registry.getData(uint256(node));
 
-        // if the tokenData is not of the correct length, return 0.
-        if (tokenData.length != 96) {
-            return 0;
+        (, , uint64 expiry, uint64 fuses, ) = _unpack(tokenData);
+
+        // Check to see if the GET_EXPIRY_FROM_PARENT fuse is burned.
+        if ((fuses & GET_EXPIRY_FROM_PARENT) != 0) {
+            // use a for loop with a maximum of 10 iterations to get the expiry from the parent.
+            for (uint256 i = 0; i <= 10; i++) {
+                if (i == 10) {
+                    revert("Expiry not found");
+                }
+
+                // get the tokenData of the parent.
+                tokenData = registry.getParentData(uint256(node));
+
+                (, , expiry, fuses, ) = _unpack(tokenData);
+
+                // If the GET_EXPIRY_FROM_PARENT is not burned break the loop.
+                if ((fuses & GET_EXPIRY_FROM_PARENT) == 0) {
+                    break;
+                }
+            }
         }
 
-        (, , uint64 expiry, , ) = _unpack(tokenData);
         return expiry;
     }
 
     function fusesOf(bytes32 node) public view returns (uint64) {
-        bytes memory tokenData = registry.getData(uint256(node));
-
-        // if the tokenData is not of the correct length, return 0.
-        if (tokenData.length < 96) {
-            return 0;
-        }
-
-        (bool isExpired, , , , uint64 fuses, ) = _isExpired(tokenData);
+        (bool isExpired, , , , uint64 fuses, ) = _isExpired(node);
 
         if (isExpired) {
             return 0;
@@ -223,17 +201,7 @@ contract FuseController is Ownable, IFuseController {
     }
 
     function renewalControllerOf(bytes32 node) external view returns (address) {
-        // get the tokenData
-        bytes memory tokenData = registry.getData(uint256(node));
-
-        // if the tokenData is not of the correct length, return 0.
-        if (tokenData.length < 96) {
-            return address(0);
-        }
-
-        (bool isExpired, , , , , address renewalController) = _isExpired(
-            tokenData
-        );
+        (bool isExpired, , , , , address renewalController) = _isExpired(node);
 
         if (isExpired) {
             return address(0);
@@ -247,8 +215,6 @@ contract FuseController is Ownable, IFuseController {
             revert CannotUpgrade();
         }
 
-        // Unpack the tokenData of the node.
-        bytes memory tokenData = registry.getData(uint256(node));
         (
             bool isExpired,
             address owner,
@@ -256,7 +222,7 @@ contract FuseController is Ownable, IFuseController {
             uint64 expiry,
             uint64 fuses,
             address renewalController
-        ) = _isExpired(tokenData);
+        ) = _isExpired(node);
 
         bool isAuthorized = registry.getAuthorization(
             uint256(node),
@@ -609,7 +575,7 @@ contract FuseController is Ownable, IFuseController {
      **********************/
 
     function _isExpired(
-        bytes memory tokenData
+        bytes32 node
     )
         internal
         view
@@ -622,9 +588,21 @@ contract FuseController is Ownable, IFuseController {
             address renewalController
         )
     {
+        bytes memory tokenData = registry.getData(uint256(node));
+
+        // If the token data is less than 96 bytes, then the token is expired.
+        if (tokenData.length < 96) {
+            return (true, address(0), address(0), 0, 0, address(0));
+        }
+
         (owner, resolver, expiry, fuses, renewalController) = _unpack(
             tokenData
         );
+
+        if ((fuses & GET_EXPIRY_FROM_PARENT) != 0) {
+            expiry = expiryOf(node);
+        }
+
         isExpired = expiry <= block.timestamp;
     }
 
@@ -641,7 +619,7 @@ contract FuseController is Ownable, IFuseController {
             address renewalController
         )
     {
-        require(tokenData.length == 96, "Invalid tokenData length");
+        require(tokenData.length >= 96, "Invalid tokenData length");
 
         assembly {
             owner := mload(add(tokenData, 40))

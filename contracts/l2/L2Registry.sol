@@ -24,6 +24,9 @@ contract L2Registry is Ownable, IERC1155, IERC1155MetadataURI {
     mapping(address => uint256) tokenApprovalsNonce;
     mapping(address => mapping(uint256 => mapping(uint256 => mapping(address => bool)))) tokenApprovals;
 
+    // A mapping of subnodes to their parent nodes, used for quickly navigating the tree.
+    mapping(uint256 => uint256) public nodePairs;
+
     IMetadataService public metadataService;
 
     error TokenDoesNotExist(uint256 id);
@@ -51,6 +54,10 @@ contract L2Registry is Ownable, IERC1155, IERC1155MetadataURI {
 
     function getData(uint256 id) external view returns (bytes memory) {
         return tokens[id].data;
+    }
+
+    function getParentData(uint256 id) external view returns (bytes memory) {
+        return tokens[nodePairs[id]].data;
     }
 
     function getName(uint256 id) external view returns (string memory) {
@@ -125,9 +132,7 @@ contract L2Registry is Ownable, IERC1155, IERC1155MetadataURI {
         bool approved
     ) external {
         // get the owner of the token
-        address _owner = _getController(tokens[id].data).ownerOfWithData(
-            tokens[id].data
-        );
+        address _owner = _getController(tokens[id].data).ownerOf(bytes32(id));
         // make sure the caller is the owner or an approved operator.
         require(
             msg.sender == _owner || isApprovedForAll(_owner, msg.sender),
@@ -182,9 +187,7 @@ contract L2Registry is Ownable, IERC1155, IERC1155MetadataURI {
         address delegate
     ) public view returns (bool) {
         // get the owner
-        address _owner = _getController(tokens[id].data).ownerOfWithData(
-            tokens[id].data
-        );
+        address _owner = _getController(tokens[id].data).ownerOf(bytes32(id));
         return
             tokenApprovals[_owner][tokenApprovalsNonce[_owner]][id][delegate];
     }
@@ -202,9 +205,7 @@ contract L2Registry is Ownable, IERC1155, IERC1155MetadataURI {
         uint256 id,
         address delegate
     ) public view returns (bool /*authorized*/) {
-        address owner = _getController(tokens[id].data).ownerOfWithData(
-            tokens[id].data
-        );
+        address owner = _getController(tokens[id].data).ownerOf(bytes32(id));
         return
             approvals[owner][delegate] ||
             tokenApprovals[owner][tokenApprovalsNonce[owner]][id][delegate];
@@ -232,7 +233,7 @@ contract L2Registry is Ownable, IERC1155, IERC1155MetadataURI {
     function resolver(uint256 id) external view returns (address /*resolver*/) {
         bytes memory tokenData = tokens[id].data;
         IController _controller = _getController(tokenData);
-        return _controller.resolverFor(tokenData);
+        return _controller.resolverFor(bytes32(id));
     }
 
     function controller(
@@ -276,11 +277,15 @@ contract L2Registry is Ownable, IERC1155, IERC1155MetadataURI {
 
         // Compute the subnode ID, and fetch the current data for it (if any)
         uint256 subnode = uint256(keccak256(abi.encodePacked(id, label)));
+
+        // Save the relationship between the subnode and the parent node.
+        nodePairs[subnode] = id;
+
         bytes memory oldSubnodeData = tokens[subnode].data;
         IController oldSubnodeController = _getController(oldSubnodeData);
         address oldOwner = oldSubnodeData.length < 20
             ? address(0)
-            : oldSubnodeController.ownerOfWithData(oldSubnodeData);
+            : oldSubnodeController.ownerOf(bytes32(subnode));
 
         // Get the address of the new controller
         IController newSubnodeController = _getController(subnodeData);
@@ -292,7 +297,7 @@ contract L2Registry is Ownable, IERC1155, IERC1155MetadataURI {
 
         // Fetch the to address, if not supplied, for the TransferSingle event.
         if (to == address(0) && subnodeData.length >= 20) {
-            to = _getController(subnodeData).ownerOfWithData(subnodeData);
+            to = _getController(subnodeData).ownerOf(bytes32(subnode));
         }
 
         emit TransferSingle(operator, oldOwner, to, subnode, 1);

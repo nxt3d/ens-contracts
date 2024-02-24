@@ -44,18 +44,20 @@ const {
   CANNOT_SET_RESOLVER,
   CANNOT_CREATE_SUBDOMAIN,
   CANNOT_SET_RENEWAL_CONTROLLER,
+  GET_EXPIRY_FROM_PARENT,
   PARENT_CANNOT_SET_EXPIRY,
   PARENT_CANNOT_CONTROL,
 } = {
   CAN_DO_EVERYTHING: 0,
   CANNOT_BURN_NAME: 1,
-  CANNOT_BURN_FUSES: 2 ** 1,
-  CANNOT_TRANSFER: 2 ** 2,
-  CANNOT_SET_RESOLVER: 2 ** 3,
-  CANNOT_CREATE_SUBDOMAIN: 2 ** 4,
-  CANNOT_SET_RENEWAL_CONTROLLER: 2 ** 5,
-  PARENT_CANNOT_SET_EXPIRY: 2 ** 6,
-  PARENT_CANNOT_CONTROL: 2 ** 7,
+  CANNOT_BURN_FUSES: 2,
+  CANNOT_TRANSFER: 4,
+  CANNOT_SET_RESOLVER: 8,
+  CANNOT_CREATE_SUBDOMAIN: 16,
+  CANNOT_SET_RENEWAL_CONTROLLER: 32,
+  GET_EXPIRY_FROM_PARENT: 64,
+  PARENT_CANNOT_SET_EXPIRY: 128,
+  PARENT_CANNOT_CONTROL: 256,
 }
 
 describe.only('L2Registry', () => {
@@ -171,7 +173,7 @@ describe.only('L2Registry', () => {
         subnodeOwnerAddress,
         resolver.address,
         MAX_EXPIRY,
-        CANNOT_SET_RESOLVER | CANNOT_BURN_NAME | PARENT_CANNOT_CONTROL, // no fuse
+        CANNOT_SET_RESOLVER | CANNOT_BURN_NAME | PARENT_CANNOT_CONTROL,
         EMPTY_ADDRESS, // no controller
         { from: ownerAddress },
       )
@@ -313,8 +315,6 @@ describe.only('L2Registry', () => {
         await controller.renewalControllerOf(TEST_SUBNODE),
         EMPTY_ADDRESS,
       )
-
-      console.log('blockTime', blockTime)
 
       await increaseTime(60 * DAY)
       await mine()
@@ -686,6 +686,43 @@ describe.only('L2Registry', () => {
         await controller.expiryOf(TEST_SUBNODE),
         blockTime + 90 * DAY,
       )
+    })
+
+    // Make sure a sub-subnode can have the GET_EXPIRY_FROM_PARENT fuse set, and the expiry of the parent is returned when calling expiryOf on the sub-subnode.
+    it('should get the expiry from the parent', async () => {
+      const blockTime = (await ethers.provider.getBlock('latest')).timestamp
+
+      await controller.setSubnode(
+        TEST_NODE,
+        labelhash('sub'),
+        subnodeOwnerAddress,
+        resolver.address,
+        blockTime + 60 * DAY,
+        CANNOT_BURN_NAME | PARENT_CANNOT_CONTROL,
+        renewalControllerAddress,
+        { from: ownerAddress },
+      )
+
+      // Predict the node hash of the sub-subnode
+      const subSubNode = namehash('sub-sub.sub.test')
+
+      // Make a sub-subnode without a renewal controller
+      await controller.setSubnode(
+        TEST_SUBNODE,
+        labelhash('sub-sub'),
+        dummyAccountAddress,
+        resolver.address,
+        0, // no expiry
+        CANNOT_BURN_NAME | PARENT_CANNOT_CONTROL | GET_EXPIRY_FROM_PARENT,
+        EMPTY_ADDRESS, // no controller
+        { from: subnodeOwnerAddress },
+      )
+
+      // Make sure the sub-subnode is owned by the dummyAccountAddress
+      assert.equal(await controller.ownerOf(subSubNode), dummyAccountAddress)
+
+      // Make sure the expiry of the sub-subnode is the same as the expiry of the subnode
+      assert.equal(await controller.expiryOf(subSubNode), blockTime + 60 * DAY)
     })
   })
 })

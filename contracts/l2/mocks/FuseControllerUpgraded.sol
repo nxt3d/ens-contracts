@@ -47,13 +47,6 @@ contract FuseControllerUpgraded is
      * IController functions *
      *************************/
 
-    function ownerOfWithData(
-        bytes calldata tokenData
-    ) external pure returns (address) {
-        (address owner, , , , ) = _unpack(tokenData);
-        return owner;
-    }
-
     function ownerOf(bytes32 node) external view returns (address) {
         //get the tokenData
         bytes memory tokenData = registry.getData(uint256(node));
@@ -108,12 +101,7 @@ contract FuseControllerUpgraded is
         return _owner == owner ? 1 : 0;
     }
 
-    function resolverFor(
-        bytes calldata tokenData
-    ) external pure returns (address) {
-        (, address resolver, , , ) = _unpack(tokenData);
-        return resolver;
-    }
+    function resolverFor(bytes32 node) external pure returns (address) {}
 
     function expiryOf(bytes32 node) external view returns (uint64) {
         // get the tokenData
