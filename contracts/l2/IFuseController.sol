@@ -15,6 +15,10 @@ uint64 constant GET_EXPIRY_FROM_PARENT = 64;
 uint64 constant PARENT_CANNOT_SET_EXPIRY = 128;
 uint64 constant PARENT_CANNOT_CONTROL = 256;
 
+uint64 constant PARENT_CONTROLLED_FUSES = GET_EXPIRY_FROM_PARENT |
+    PARENT_CANNOT_SET_EXPIRY |
+    PARENT_CANNOT_CONTROL;
+
 interface IFuseController is IController {
     function expiryOf(bytes32 node) external view returns (uint64);
 

@@ -339,7 +339,10 @@ describe.only('L2Registry', () => {
       await controller.setFuses(TEST_NODE, CANNOT_TRANSFER, {
         from: ownerAddress,
       })
-      assert.equal(await controller.fusesOf(TEST_NODE), CANNOT_TRANSFER)
+      assert.equal(
+        await controller.fusesOf(TEST_NODE),
+        CANNOT_TRANSFER | CANNOT_BURN_NAME | PARENT_CANNOT_CONTROL,
+      )
       await expect(
         registry.safeTransferFrom(
           ownerAddress,
@@ -359,7 +362,10 @@ describe.only('L2Registry', () => {
       await controller.setFuses(TEST_NODE, CANNOT_SET_RESOLVER, {
         from: ownerAddress,
       })
-      assert.equal(await controller.fusesOf(TEST_NODE), CANNOT_SET_RESOLVER)
+      assert.equal(
+        await controller.fusesOf(TEST_NODE),
+        CANNOT_SET_RESOLVER | CANNOT_BURN_NAME | PARENT_CANNOT_CONTROL,
+      )
       await expect(
         controller.setResolver(TEST_NODE, dummyAddress, {
           from: ownerAddress,

@@ -173,7 +173,7 @@ contract FuseController is Ownable, IFuseController {
             // use a for loop with a maximum of 10 iterations to get the expiry from the parent.
             for (uint256 i = 0; i <= 10; i++) {
                 if (i == 10) {
-                    revert("Expiry not found");
+                    revert("Expiry not found"); //@audit this might be safer to just return a zero expiry.
                 }
 
                 // get the tokenData of the parent.
@@ -261,40 +261,149 @@ contract FuseController is Ownable, IFuseController {
 
     // A setFuses function that allows the owner of a node to set the fuses of the node.
     function setFuses(uint256 id, uint64 fuses) external {
+        TokenData memory td;
+
+        // Revert if parent controlled fuses are included in "fuses"
+        require(
+            fuses & PARENT_CONTROLLED_FUSES == 0,
+            "Cannot burn parent controlled fuses"
+        );
+
         // get tokenData
         bytes memory tokenData = registry.getData(id);
         (
-            address owner,
-            address resolver,
-            uint64 expiry,
-            uint64 oldFuses,
-            address renewalController
+            td.owner,
+            td.resolver,
+            td.expiry,
+            td.fuses,
+            td.renewalController
         ) = _unpack(tokenData);
 
-        bool isAuthorized = registry.getAuthorization(id, owner, msg.sender);
+        // Make sure the parent node controller is this contract.
+        require(
+            address(_getController(tokenData)) == address(this),
+            "Controller is not this contract"
+        );
 
-        if (owner != msg.sender && !isAuthorized) {
+        // Make sure the caller is authorized.
+        bool isAuthorized = registry.getAuthorization(id, td.owner, msg.sender);
+
+        if (td.owner != msg.sender && !isAuthorized) {
             revert Unauthorised(bytes32(id), msg.sender);
         }
 
         // Make sure that the CANNOT_BURN_FUSES is not burned.
-        require((oldFuses & CANNOT_BURN_FUSES) == 0, "Cannot burn fuses");
+        require((td.fuses & CANNOT_BURN_FUSES) == 0, "Cannot burn fuses");
 
-        // Make sure that PARENT_CANNOT_CONTROL is burned.
-        require(
-            (oldFuses & PARENT_CANNOT_CONTROL) != 0,
-            "Parent cannot control"
+        // Make sure that CANNOT_BURN_NAME is burned or is being burned.
+        require( // @audit In the NameWrapper it is also necessary to burn parent controlled fuses, not sure tha this is necessary.
+            (td.fuses | fuses) & CANNOT_BURN_NAME != 0,
+            "CANNOT_BURN_NAME is not burned or being burned"
         );
 
         registry.setNode(
             id,
             _pack(
                 address(this),
-                owner,
-                resolver,
-                expiry,
-                fuses,
-                renewalController
+                td.owner,
+                td.resolver,
+                td.expiry,
+                fuses | td.fuses,
+                td.renewalController
+            )
+        );
+    }
+
+    // A setChidFuses function that allows the owner of a node to set the fuses of the subnode.
+    function setChildFuses(
+        bytes32 node,
+        bytes32 labelhash,
+        uint64 fuses
+    ) external {
+        TokenData memory td;
+        TokenData memory td_sub;
+
+        // Make a child node
+        bytes32 subnode = keccak256(abi.encodePacked(node, labelhash));
+
+        // get tokenData
+        bytes memory tokenData = registry.getData(uint256(node));
+
+        // Make sure the parent node controller is this contract.
+        require(
+            address(_getController(tokenData)) == address(this),
+            "Controller is not this contract"
+        );
+
+        // Get the data of the parent node.
+        (
+            td.owner,
+            ,
+            /*resolver*/ td.expiry,
+            td.fuses,
+            /*renewalController*/
+
+        ) = _unpack(tokenData);
+
+        // Make sure the caller is authorized.
+        bool isAuthorized = registry.getAuthorization(
+            uint256(node),
+            td.owner,
+            msg.sender
+        );
+
+        if (td.owner != msg.sender && !isAuthorized) {
+            revert Unauthorised(node, msg.sender);
+        }
+
+        // Get the data of the subnode
+        bytes memory tokenDataSubnode = registry.getData(uint256(subnode));
+
+        // Make sure the subnode controller is this contract. // @audit what happens if the subnode is a different controller type?
+        require(
+            address(_getController(tokenDataSubnode)) == address(this),
+            "Controller of the subnode is not this contract"
+        );
+
+        // Get the data of the subnode.
+        (
+            td_sub.owner,
+            td_sub.resolver,
+            td_sub.expiry,
+            td_sub.fuses,
+            td_sub.renewalController
+        ) = _unpack(tokenDataSubnode);
+
+        // Make sure that the CANNOT_BURN_FUSES is not burned.
+        require((td_sub.fuses & CANNOT_BURN_FUSES) == 0, "Cannot burn fuses");
+
+        // If PARENT_CANNOT_CONTROL is burned then revert.
+        require(
+            (td_sub.fuses & PARENT_CANNOT_CONTROL) == 0,
+            "Parent cannot control"
+        );
+
+        // Make sure that the parent fuses have CANNOT_BURN_NAME burned.
+        require(
+            td.fuses & CANNOT_BURN_NAME != 0,
+            "CANNOT_BURN_NAME is not burned on the paranet"
+        );
+
+        // Make sure that CANNOT_BURN_NAME is burned or is being burned.
+        require( // @audit In the NameWrapper it is also necessary to burn the parent cannot control fuse, not sure tha this is necessary.
+            (td_sub.fuses | fuses) & CANNOT_BURN_NAME != 0,
+            "CANNOT_BURN_NAME is not burned or being burned"
+        );
+
+        registry.setNode(
+            uint256(subnode),
+            _pack(
+                address(this),
+                td_sub.owner,
+                td_sub.resolver,
+                td_sub.expiry,
+                td_sub.fuses | fuses,
+                td_sub.renewalController
             )
         );
     }
@@ -315,6 +424,13 @@ contract FuseController is Ownable, IFuseController {
             uint64 fuses,
             address renewalController
         ) = _unpack(tokenData);
+
+        // Make sure the parent node controller is this contract.
+        require(
+            address(_getController(tokenData)) == address(this),
+            "Controller is not this contract"
+        );
+
         bool isAuthorized = registry.getAuthorization(id, owner, msg.sender);
 
         if (owner != msg.sender && !isAuthorized) {
